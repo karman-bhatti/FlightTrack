@@ -5,18 +5,15 @@ import { Command } from "cmdk";
 import {
   Search,
   X,
-  MapPin,
-  Plane,
-  Eye,
   Loader2,
-  Clock,
-  Trash2,
   Gauge,
   ArrowUpRight,
   Globe2,
+  MapPin,
+  Plane,
 } from "lucide-react";
-import { CITIES, type City } from "@/lib/cities";
-import { searchAirports, airportToCity } from "@/lib/airports";
+import { motion } from "motion/react";
+import type { City } from "@/lib/cities";
 import type { FlightState } from "@/lib/opensky";
 import {
   formatCallsign,
@@ -25,86 +22,16 @@ import {
 } from "@/lib/flight-utils";
 import { useSettings } from "@/hooks/use-settings";
 import { formatAltitude, formatSpeed } from "@/lib/unit-formatters";
-
-// ── Recent searches (localStorage) ─────────────────────────────────────
-
-const RECENT_KEY = "aeris:recent-searches";
-const RECENT_MAX = 4;
-const RECENT_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-type RecentEntry = { q: string; ts: number };
-
-function getRecents(): string[] {
-  try {
-    const raw = localStorage.getItem(RECENT_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    const now = Date.now();
-    const valid = parsed
-      .filter(
-        (e): e is RecentEntry =>
-          typeof e === "object" &&
-          e !== null &&
-          typeof e.q === "string" &&
-          typeof e.ts === "number" &&
-          now - e.ts < RECENT_EXPIRY_MS,
-      )
-      .slice(0, RECENT_MAX);
-    if (valid.length !== parsed.length) {
-      localStorage.setItem(RECENT_KEY, JSON.stringify(valid));
-    }
-    return valid.map((e) => e.q);
-  } catch {
-    // localStorage unavailable or corrupted — return empty recent list
-    return [];
-  }
-}
-
-function addRecent(query: string) {
-  const q = query.trim();
-  if (!q || q.length > 100) return;
-  try {
-    const raw = localStorage.getItem(RECENT_KEY);
-    const prev: RecentEntry[] = raw ? (JSON.parse(raw) ?? []) : [];
-    const filtered = (Array.isArray(prev) ? prev : []).filter(
-      (e): e is RecentEntry =>
-        typeof e === "object" &&
-        e !== null &&
-        typeof e.q === "string" &&
-        e.q.toLowerCase() !== q.toLowerCase(),
-    );
-    const next = [{ q, ts: Date.now() }, ...filtered].slice(0, RECENT_MAX);
-    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
-  } catch {
-    // localStorage unavailable or quota exceeded
-  }
-}
-
-function removeRecent(query: string) {
-  try {
-    const raw = localStorage.getItem(RECENT_KEY);
-    const prev: RecentEntry[] = raw ? (JSON.parse(raw) ?? []) : [];
-    const next = (Array.isArray(prev) ? prev : []).filter(
-      (e): e is RecentEntry =>
-        typeof e === "object" &&
-        e !== null &&
-        typeof e.q === "string" &&
-        e.q.toLowerCase() !== query.toLowerCase(),
-    );
-    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
-  } catch {
-    // localStorage unavailable or corrupted
-  }
-}
-
-function clearRecents() {
-  try {
-    localStorage.removeItem(RECENT_KEY);
-  } catch {
-    // localStorage unavailable
-  }
-}
+import { lookupAirline, flightQueryMatches } from "@/lib/airlines";
+import { CountryFlag } from "@/components/ui/country-flag";
+import { AirlineLogo } from "@/components/ui/airline-logo";
+import { searchFlightsGlobal } from "@/lib/search-flight-client";
+import {
+  searchLocalLocations,
+  searchGeocode,
+  locationToCity,
+  type SearchLocation,
+} from "@/lib/search-location-client";
 
 // ── Highlight matched text safely ──────────────────────────────────────
 
@@ -119,7 +46,7 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
   return (
     <>
       {text.slice(0, idx)}
-      <span className="text-foreground/95 font-semibold">
+      <span className="text-foreground/90 font-medium">
         {text.slice(idx, idx + q.length)}
       </span>
       {text.slice(idx + q.length)}
@@ -144,94 +71,54 @@ function AltitudeDot({ altitude }: { altitude: number | null }) {
   );
 }
 
-// ── Country code to flag emoji ─────────────────────────────────────────
+// ── Segmented Control (Apple-style) ────────────────────────────────────
 
-function countryFlag(countryName: string): string {
-  const COUNTRY_ISO: Record<string, string> = {
-    "united states": "US",
-    usa: "US",
-    us: "US",
-    "united kingdom": "GB",
-    uk: "GB",
-    gb: "GB",
-    germany: "DE",
-    france: "FR",
-    spain: "ES",
-    italy: "IT",
-    canada: "CA",
-    australia: "AU",
-    japan: "JP",
-    china: "CN",
-    india: "IN",
-    brazil: "BR",
-    russia: "RU",
-    mexico: "MX",
-    "south korea": "KR",
-    netherlands: "NL",
-    switzerland: "CH",
-    sweden: "SE",
-    norway: "NO",
-    denmark: "DK",
-    ireland: "IE",
-    portugal: "PT",
-    austria: "AT",
-    belgium: "BE",
-    turkey: "TR",
-    thailand: "TH",
-    singapore: "SG",
-    malaysia: "MY",
-    indonesia: "ID",
-    philippines: "PH",
-    "united arab emirates": "AE",
-    "saudi arabia": "SA",
-    qatar: "QA",
-    israel: "IL",
-    "south africa": "ZA",
-    egypt: "EG",
-    "new zealand": "NZ",
-    argentina: "AR",
-    chile: "CL",
-    colombia: "CO",
-    peru: "PE",
-    poland: "PL",
-    czechia: "CZ",
-    "czech republic": "CZ",
-    romania: "RO",
-    greece: "GR",
-    finland: "FI",
-    vietnam: "VN",
-    taiwan: "TW",
-    "hong kong": "HK",
-    pakistan: "PK",
-    bangladesh: "BD",
-    ukraine: "UA",
-    hungary: "HU",
-    morocco: "MA",
-    nigeria: "NG",
-    kenya: "KE",
-    iceland: "IS",
-    luxembourg: "LU",
-    croatia: "HR",
-    serbia: "RS",
-    bulgaria: "BG",
-    slovakia: "SK",
-    slovenia: "SI",
-    estonia: "EE",
-    latvia: "LV",
-    lithuania: "LT",
-    malta: "MT",
-    cyprus: "CY",
-  };
-
-  const key = countryName.trim().toLowerCase();
-  const iso = COUNTRY_ISO[key];
-  if (!iso) return "";
-
-  // Convert ISO code to flag emoji using regional indicator symbols
-  return String.fromCodePoint(
-    ...iso.split("").map((c) => 0x1f1e6 + c.charCodeAt(0) - 65),
+function SegmentedControl({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string; icon: typeof MapPin }[];
+}) {
+  return (
+    <div className="relative flex items-center rounded-xl bg-foreground/[0.04] p-1">
+      {options.map((opt) => {
+        const active = value === opt.value;
+        const Icon = opt.icon;
+        return (
+          <button
+            key={opt.value}
+            onClick={() => onChange(opt.value)}
+            className={`relative z-10 flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-[13px] font-medium transition-colors duration-200 ${
+              active
+                ? "text-foreground/85"
+                : "text-foreground/30 hover:text-foreground/50"
+            }`}
+            aria-pressed={active}
+          >
+            {active && (
+              <motion.div
+                layoutId="search-segment-bg"
+                className="absolute inset-0 rounded-lg bg-popover shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.2)] border border-foreground/5"
+                transition={{ type: "spring", stiffness: 450, damping: 32 }}
+              />
+            )}
+            <span className="relative flex items-center gap-1.5">
+              <Icon className="h-3.5 w-3.5" />
+              {opt.label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
+
+// ── Types ──────────────────────────────────────────────────────────────
+
+type SearchMode = "locations" | "flights";
 
 // ── Main SearchContent ─────────────────────────────────────────────────
 
@@ -241,126 +128,207 @@ export function SearchContent({
   flights,
   activeFlightIcao24,
   onLookupFlight,
+  onSelectFlight,
 }: {
   activeCity: City;
   onSelect: (city: City) => void;
   flights: FlightState[];
   activeFlightIcao24: string | null;
   onLookupFlight: (query: string, enterFpv?: boolean) => Promise<boolean>;
+  onSelectFlight?: (flight: FlightState) => void;
 }) {
   const { settings } = useSettings();
+  const [mode, setMode] = useState<SearchMode>("locations");
   const [query, setQuery] = useState("");
   const [lookupBusy, setLookupBusy] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
-  const [recents, setRecents] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
 
-  // Load recents on mount
+  // Async location state
+  const [geoResults, setGeoResults] = useState<SearchLocation[]>([]);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const geoAbortRef = useRef<AbortController | null>(null);
+
+  // Async flight state
+  const [globalFlights, setGlobalFlights] = useState<FlightState[]>([]);
+  const [globalLoading, setGlobalLoading] = useState(false);
+  const flightAbortRef = useRef<AbortController | null>(null);
+
+  // Auto-focus with a frame delay for dialog mounting, re-focus on mode switch
   useEffect(() => {
-    setRecents(getRecents());
-  }, []);
+    const id = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(id);
+  }, [mode]);
 
-  // Auto-focus with a frame delay for dialog mounting
+  // ── Debounced geocode search (Locations mode) ──────────────────────
+
   useEffect(() => {
-    requestAnimationFrame(() => inputRef.current?.focus());
-  }, []);
+    if (mode !== "locations") return;
 
-  // Live search results
-  const { featured, airports } = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q)
-      return {
-        featured: CITIES,
-        airports: [] as ReturnType<typeof searchAirports>,
-      };
+    const q = query.trim();
+    if (q.length < 2) return;
 
-    const featured = CITIES.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.iata.toLowerCase().includes(q) ||
-        c.country.toLowerCase().includes(q),
-    );
+    geoAbortRef.current?.abort();
+    const controller = new AbortController();
+    geoAbortRef.current = controller;
 
-    const featuredIatas = new Set(CITIES.map((c) => c.iata));
-    const airports = searchAirports(q).filter(
-      (a) => !featuredIatas.has(a.iata),
-    );
-    return { featured, airports };
-  }, [query]);
+    const timer = setTimeout(async () => {
+      setGeoLoading(true);
+      try {
+        const results = await searchGeocode(q, controller.signal);
+        if (!controller.signal.aborted) setGeoResults(results);
+      } catch {
+        if (!controller.signal.aborted) setGeoResults([]);
+      } finally {
+        if (!controller.signal.aborted) setGeoLoading(false);
+      }
+    }, 350);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query, mode]);
+
+  // ── Debounced global flight search (Flights mode) ──────────────────
+
+  useEffect(() => {
+    if (mode !== "flights") return;
+
+    const q = query.trim();
+    if (q.length < 2) return;
+
+    flightAbortRef.current?.abort();
+    const controller = new AbortController();
+    flightAbortRef.current = controller;
+
+    const timer = setTimeout(async () => {
+      setGlobalLoading(true);
+      try {
+        const results = await searchFlightsGlobal(q, controller.signal);
+        if (!controller.signal.aborted) setGlobalFlights(results);
+      } catch {
+        if (!controller.signal.aborted) setGlobalFlights([]);
+      } finally {
+        if (!controller.signal.aborted) setGlobalLoading(false);
+      }
+    }, 400);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query, mode]);
+
+  // ── Local results ──────────────────────────────────────────────────
+
+  const localLocations = useMemo(
+    () => searchLocalLocations(query),
+    [query],
+  );
 
   const compactQuery = query.trim().toLowerCase().replace(/\s+/g, "");
-  const isIcao24Query = /^[0-9a-f]{6}$/.test(compactQuery);
+  const isPureHexQuery = /^[0-9a-f]{6}$/.test(compactQuery);
+  const looksLikeFlightNumber = /^[a-z0-9]{2,3}\d+[a-z]?$/i.test(query.trim());
 
-  const flightMatches = useMemo(() => {
-    if (!compactQuery) return [] as FlightState[];
+  const localFlightMatches = useMemo(() => {
+    if (!compactQuery || mode !== "flights") return [] as FlightState[];
     return flights
       .filter((flight) => {
         const icao = flight.icao24.toLowerCase();
-        const callsign = (flight.callsign ?? "")
-          .trim()
-          .toLowerCase()
-          .replace(/\s+/g, "");
-        return icao.includes(compactQuery) || callsign.includes(compactQuery);
+        // Direct hex or callsign match
+        if (icao.includes(compactQuery)) return true;
+        // IATA ↔ ICAO translated match
+        if (flightQueryMatches(query, flight.callsign)) return true;
+        return false;
       })
-      .slice(0, 15);
-  }, [flights, compactQuery]);
-
-  const showRecents = !query && recents.length > 0;
+      .slice(0, 10);
+  }, [flights, compactQuery, mode, query]);
 
   // Total result count for screen reader
-  const totalResults = flightMatches.length + featured.length + airports.length;
+  const totalResults =
+    mode === "locations"
+      ? localLocations.cities.length +
+        localLocations.airports.length +
+        geoResults.length
+      : globalFlights.length + localFlightMatches.length;
 
   // ── Actions ────────────────────────────────────────────────────────
 
-  const runLookup = useCallback(
-    async (enterFpv = false) => {
-      if (!query.trim() || lookupBusy) return;
-      setLookupBusy(true);
-      setLookupError(null);
-      addRecent(query.trim());
-      setRecents(getRecents());
-      try {
-        const found = await onLookupFlight(query, enterFpv);
-        if (!found) {
+  const runLookup = useCallback(async () => {
+    if (!query.trim() || lookupBusy) return;
+    setLookupBusy(true);
+    setLookupError(null);
+    try {
+      // Prefer using an already-found ICAO24 so we avoid re-querying with a
+      // raw string that might be misclassified (e.g. "IX2680" looks like hex).
+      const target =
+        globalFlights[0]?.icao24 ?? localFlightMatches[0]?.icao24 ?? query;
+      const found = await onLookupFlight(target);
+      if (!found) {
+        if (isPureHexQuery) {
           setLookupError(
-            isIcao24Query
-              ? "Flight not found for this ICAO24 right now"
-              : 'No live flight match found — try a callsign like "UAL123" or ICAO24 hex',
+            `No flight found for ICAO24 ${query.trim().toUpperCase()} right now`,
+          );
+        } else if (looksLikeFlightNumber) {
+          setLookupError(
+            `No live flight match found for ${query.trim().toUpperCase()} right now. The aircraft may be on the ground or out of coverage.`,
+          );
+        } else {
+          setLookupError(
+            'No live flight match found — try a callsign like "UAL123" or hex like "a1b2c3"',
           );
         }
-      } finally {
-        setLookupBusy(false);
       }
-    },
-    [query, lookupBusy, onLookupFlight, isIcao24Query],
-  );
+    } finally {
+      setLookupBusy(false);
+    }
+  }, [
+    query,
+    lookupBusy,
+    onLookupFlight,
+    isPureHexQuery,
+    looksLikeFlightNumber,
+    globalFlights,
+    localFlightMatches,
+  ]);
 
   const openFlight = useCallback(
-    async (icao24: string, enterFpv = false) => {
+    async (icao24: string) => {
       if (lookupBusy) return;
+
+      // If we already have the flight data from global or local search,
+      // select it directly without re-querying the API.
+      const known =
+        globalFlights.find((f) => f.icao24 === icao24) ??
+        localFlightMatches.find((f) => f.icao24 === icao24);
+      if (known && onSelectFlight) {
+        onSelectFlight(known);
+        return;
+      }
+
       setLookupBusy(true);
       setLookupError(null);
-      addRecent(icao24.toUpperCase());
-      setRecents(getRecents());
       try {
-        const found = await onLookupFlight(icao24, enterFpv);
+        const found = await onLookupFlight(icao24);
         if (!found) setLookupError("Unable to open the selected flight");
       } finally {
         setLookupBusy(false);
       }
     },
-    [lookupBusy, onLookupFlight],
+    [lookupBusy, onLookupFlight, onSelectFlight, globalFlights, localFlightMatches],
   );
 
-  const handleRemoveRecent = useCallback((q: string) => {
-    removeRecent(q);
-    setRecents(getRecents());
-  }, []);
-
-  const handleClearRecents = useCallback(() => {
-    clearRecents();
-    setRecents([]);
+  const handleModeChange = useCallback((newMode: SearchMode) => {
+    setMode(newMode);
+    setLookupError(null);
+    if (newMode === "locations") {
+      setGlobalFlights([]);
+      setGlobalLoading(false);
+    } else {
+      setGeoResults([]);
+      setGeoLoading(false);
+    }
   }, []);
 
   // ── Custom cmdk filter ─────────────────────────────────────────────
@@ -386,379 +354,423 @@ export function SearchContent({
     [],
   );
 
+  // ── Render helpers ─────────────────────────────────────────────────
+
+  const flightItem = (flight: FlightState, isGlobal = false) => {
+    const cs = formatCallsign(flight.callsign);
+    const airline = lookupAirline(flight.callsign);
+    return (
+      <Command.Item
+        key={flight.icao24}
+        value={`flight:${flight.icao24}:${cs}:${isGlobal ? "global" : "local"}`}
+        keywords={[flight.icao24, cs, flight.originCountry]}
+        onSelect={() => void openFlight(flight.icao24)}
+        className="search-item"
+      >
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+          <AirlineLogo
+            callsign={flight.callsign}
+            airlineName={airline}
+            size={22}
+            className="shrink-0"
+          />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="truncate text-[14px] font-medium text-foreground/85">
+              <HighlightMatch text={cs} query={query} />
+            </p>
+            {activeFlightIcao24 === flight.icao24 && (
+              <span className="shrink-0 rounded-full bg-emerald-500/12 border border-emerald-400/18 px-2 py-0.5 text-[10px] font-semibold text-emerald-400/80">
+                Active
+              </span>
+            )}
+            {isGlobal && (
+              <span className="shrink-0 rounded-full bg-sky-500/10 border border-sky-400/15 px-2 py-0.5 text-[10px] font-semibold text-sky-400/70">
+                Global
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-[12px] text-foreground/30 mt-0.5">
+            <span className="font-mono tracking-wide">
+              <HighlightMatch
+                text={flight.icao24.toUpperCase()}
+                query={query}
+              />
+            </span>
+            <span className="text-foreground/10">·</span>
+            <CountryFlag
+              country={flight.originCountry}
+              size={11}
+              className="rounded-[1px]"
+            />
+            <span className="truncate">{flight.originCountry}</span>
+          </div>
+        </div>
+
+        {/* Flight info chips */}
+        <div className="hidden sm:flex items-center gap-2 shrink-0">
+          {flight.baroAltitude != null && (
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-foreground/[0.04] px-2 py-1 text-[11px] font-medium text-foreground/35">
+              <AltitudeDot altitude={flight.baroAltitude} />
+              {formatAltitude(flight.baroAltitude, settings.unitSystem)}
+            </span>
+          )}
+          {flight.velocity != null && (
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-foreground/[0.04] px-2 py-1 text-[11px] font-medium text-foreground/35">
+              <Gauge className="h-3 w-3 text-foreground/20" />
+              {formatSpeed(flight.velocity, settings.unitSystem)}
+            </span>
+          )}
+          {flight.trueTrack != null && (
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-foreground/[0.04] px-2 py-1 text-[11px] font-medium text-foreground/35">
+              <ArrowUpRight
+                className="h-3 w-3 text-foreground/20"
+                style={{
+                  transform: `rotate(${flight.trueTrack - 45}deg)`,
+                }}
+              />
+              {headingToCardinal(flight.trueTrack)}
+            </span>
+          )}
+        </div>
+      </Command.Item>
+    );
+  };
+
   return (
     <Command
       className="flex h-full flex-col aeris-cmdk"
       filter={cmdkFilter}
       loop
-      label="Search airports, flights, and cities"
+      label={
+        mode === "locations"
+          ? "Search airports, cities, and places"
+          : "Search live flights worldwide"
+      }
     >
-      {/* ── Search input ──────────────────────────────────────────── */}
-      <div className="flex items-center gap-2.5 border-b border-foreground/6 mx-3 sm:mx-5 pb-3">
-        <Search className="h-3.5 w-3.5 shrink-0 text-foreground/25" />
-        <Command.Input
-          ref={inputRef}
-          value={query}
-          onValueChange={(v) => {
-            setQuery(v);
-            setLookupError(null);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-              e.preventDefault();
-              void runLookup(true);
-            }
-          }}
-          placeholder="Search airports, flights, ICAO24…"
-          aria-label="Search airports, flights, and cities"
-          className="flex-1 bg-transparent text-[14px] font-medium text-foreground/90 placeholder:text-foreground/20 outline-none"
+      {/* ── Header ────────────────────────────────────────────────── */}
+      <div className="px-5 pt-5 pb-4 space-y-4">
+        {/* Segmented control */}
+        <SegmentedControl
+          value={mode}
+          onChange={(v) => handleModeChange(v as SearchMode)}
+          options={[
+            { value: "locations", label: "Locations", icon: MapPin },
+            { value: "flights", label: "Flights", icon: Plane },
+          ]}
         />
-        {query && (
-          <button
-            onClick={() => setQuery("")}
-            className="shrink-0 text-foreground/20 hover:text-foreground/40 transition-colors"
-            aria-label="Clear search"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        )}
+
+        {/* Search input */}
+        <div className="flex items-center gap-3 rounded-2xl bg-foreground/[0.035] border border-foreground/[0.06] px-4 py-3.5 transition-colors focus-within:bg-foreground/[0.05] focus-within:border-foreground/[0.12]">
+          <Search className="h-[18px] w-[18px] shrink-0 text-foreground/25" />
+          <Command.Input
+            ref={inputRef}
+            value={query}
+            onValueChange={(v) => {
+              setQuery(v);
+              setLookupError(null);
+              const trimmed = v.trim();
+              if (!trimmed || trimmed.length < 2) {
+                setGeoResults([]);
+                setGlobalFlights([]);
+                setGeoLoading(false);
+                setGlobalLoading(false);
+              }
+            }}
+
+            placeholder={
+              mode === "locations"
+                ? "Search airports, cities, places…"
+                : "Search flights by callsign or ICAO24…"
+            }
+            aria-label={
+              mode === "locations"
+                ? "Search airports, cities, and places"
+                : "Search live flights by callsign or ICAO24"
+            }
+            className="flex-1 bg-transparent text-[15px] font-normal text-foreground/85 placeholder:text-foreground/25 outline-none"
+          />
+          {query && (
+            <button
+              onClick={() => setQuery("")}
+              className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full bg-foreground/10 text-foreground/30 hover:bg-foreground/15 hover:text-foreground/50 transition-all"
+              aria-label="Clear search"
+            >
+              <X className="h-3 w-3" strokeWidth={2.5} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Error banner ──────────────────────────────────────────── */}
       {lookupError && (
-        <div className="mx-3 sm:mx-5 mt-2 flex items-start gap-2 rounded-lg border border-amber-500/15 bg-amber-500/5 px-3 py-2">
-          <span className="mt-px text-[11px] font-medium text-amber-300/85 leading-snug">
+        <div className="mx-5 mb-3 flex items-start gap-3 rounded-xl border border-amber-500/12 bg-amber-500/[0.04] px-4 py-3">
+          <span className="text-[13px] font-normal text-amber-400/70 leading-snug">
             {lookupError}
           </span>
         </div>
       )}
 
       {/* ── Result list ───────────────────────────────────────────── */}
-      <Command.List
-        ref={listRef}
-        className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-none p-2"
-      >
-        <Command.Empty className="flex flex-col items-center justify-center py-10 gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-foreground/4">
-            <Globe2 className="h-5 w-5 text-foreground/15" />
+      <Command.List className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-none px-3 pb-4">
+        <Command.Empty className="flex flex-col items-center justify-center py-16 gap-5">
+          <div className="flex h-14 w-14 items-center justify-center rounded-[22px] bg-foreground/[0.04]">
+            <Globe2 className="h-6 w-6 text-foreground/12" />
           </div>
-          <div className="text-center space-y-1">
-            <p className="text-[13px] font-medium text-foreground/30">
+          <div className="text-center space-y-2">
+            <p className="text-[15px] font-medium text-foreground/25">
               No results found
             </p>
-            <p className="text-[11px] text-foreground/15 max-w-55 leading-relaxed">
-              Try an airport code like &quot;JFK&quot;, a city name, or a flight
-              callsign like &quot;UAL123&quot;
+            <p className="text-[13px] text-foreground/15 max-w-[220px] leading-relaxed">
+              {mode === "locations"
+                ? "Try an airport code, city name, or landmark"
+                : "Try a callsign like UAL123 or hex like a1b2c3"}
             </p>
           </div>
         </Command.Empty>
 
-        {/* ── Recent searches ───────────────────────────────────── */}
-        {showRecents && (
-          <Command.Group
-            heading={
-              <div className="flex items-center justify-between">
-                <span>Recent</span>
-                <button
-                  onClick={handleClearRecents}
-                  className="text-[9px] font-medium text-foreground/20 hover:text-foreground/40 transition-colors normal-case tracking-normal"
-                >
-                  Clear all
-                </button>
-              </div>
-            }
-          >
-            {recents.map((r) => (
-              <Command.Item
-                key={`recent-${r}`}
-                value={`recent:${r}`}
-                keywords={[r]}
-                onSelect={() => {
-                  setQuery(r);
-                  inputRef.current?.focus();
-                }}
-                className="search-item"
-              >
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-foreground/3">
-                  <Clock className="h-3 w-3 text-foreground/25" />
-                </div>
-                <span className="flex-1 truncate text-[13px] font-medium text-foreground/50">
-                  {r}
-                </span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleRemoveRecent(r);
-                  }}
-                  className="shrink-0 opacity-0 group-data-[selected=true]/item:opacity-100 text-foreground/20 hover:text-foreground/40 transition-all"
-                  aria-label={`Remove ${r} from recent searches`}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </Command.Item>
-            ))}
-          </Command.Group>
-        )}
-
-        {/* ── Worldwide lookup action ───────────────────────────── */}
-        {compactQuery && (
-          <Command.Group heading="Actions">
-            <Command.Item
-              value={`lookup:${query}`}
-              keywords={[query]}
-              onSelect={() => void runLookup(false)}
-              disabled={lookupBusy}
-              className="search-item"
-            >
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-foreground/4">
-                {lookupBusy ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-foreground/40" />
-                ) : (
-                  <Search className="h-3.5 w-3.5 text-foreground/40" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="truncate text-[13px] font-medium text-foreground/70">
-                  Search worldwide for &quot;{query.trim()}&quot;
-                </p>
-                <p className="text-[10px] text-foreground/25">
-                  {isIcao24Query
-                    ? "ICAO24 hex lookup"
-                    : "Callsign / flight number lookup"}
-                </p>
-              </div>
-              <kbd className="hidden sm:inline-flex h-5 items-center rounded border border-foreground/8 bg-foreground/4 px-1.5 text-[9px] font-semibold text-foreground/25">
-                ↵
-              </kbd>
-            </Command.Item>
-            <Command.Item
-              value={`fpv:${query}`}
-              keywords={[query, "fpv", "first person"]}
-              onSelect={() => void runLookup(true)}
-              disabled={lookupBusy}
-              className="search-item"
-            >
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-500/10 border border-sky-400/15">
-                {lookupBusy ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-sky-300/60" />
-                ) : (
-                  <Eye className="h-3.5 w-3.5 text-sky-300/70" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="truncate text-[13px] font-medium text-sky-200/70">
-                  Open in FPV mode
-                </p>
-                <p className="text-[10px] text-sky-300/25">
-                  Follow camera view
-                </p>
-              </div>
-              <kbd className="hidden sm:inline-flex h-5 items-center gap-0.5 rounded border border-foreground/8 bg-foreground/4 px-1.5 text-[9px] font-semibold text-foreground/25">
-                <span className="text-[8px]">⌘</span>↵
-              </kbd>
-            </Command.Item>
-          </Command.Group>
-        )}
-
-        {/* ── Live flights ──────────────────────────────────────── */}
-        {flightMatches.length > 0 && (
-          <Command.Group heading="Live Flights">
-            {flightMatches.map((flight) => {
-              const cs = formatCallsign(flight.callsign);
-              const flag = countryFlag(flight.originCountry);
-              return (
+        {mode === "locations" ? (
+          <>
+            {/* ── Loading: Places ─────────────────────────────── */}
+            {geoLoading && (
+              <Command.Group heading="Places">
                 <Command.Item
-                  key={flight.icao24}
-                  value={`flight:${flight.icao24}:${cs}`}
-                  keywords={[flight.icao24, cs, flight.originCountry]}
-                  onSelect={() => void openFlight(flight.icao24, false)}
-                  className="search-item"
+                  value="__geo-loading__"
+                  disabled
+                  className="search-item opacity-50"
                 >
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-foreground/4">
-                    <Plane className="h-3.5 w-3.5 text-foreground/40" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+                    <Loader2 className="h-4 w-4 animate-spin text-foreground/25" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p className="truncate text-[13px] font-semibold text-foreground/80">
-                        <HighlightMatch text={cs} query={query} />
+                  <span className="text-[14px] font-normal text-foreground/35">
+                    Searching places worldwide…
+                  </span>
+                </Command.Item>
+              </Command.Group>
+            )}
+
+            {/* ── Cities ──────────────────────────────────────── */}
+            {localLocations.cities.length > 0 && (
+              <Command.Group
+                heading={query ? "Cities" : "Popular Airports"}
+              >
+                {localLocations.cities.map((loc) => (
+                  <Command.Item
+                    key={loc.id}
+                    value={loc.id}
+                    keywords={[loc.name, loc.code, loc.countryCode]}
+                    onSelect={() => onSelect(locationToCity(loc))}
+                    className="search-item"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+                      <CountryFlag
+                        code={loc.countryCode}
+                        size={18}
+                        className="shrink-0 rounded-[4px]"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate text-[14px] font-normal text-foreground/80">
+                        <HighlightMatch text={loc.name} query={query} />
                       </p>
-                      {activeFlightIcao24 === flight.icao24 && (
-                        <span className="shrink-0 rounded-full bg-emerald-500/15 border border-emerald-400/20 px-1.5 py-px text-[8px] font-bold uppercase tracking-wider text-emerald-300/80">
-                          Active
+                      <p className="flex items-center gap-2 text-[12px] text-foreground/30 mt-0.5">
+                        <HighlightMatch text={loc.code} query={query} />
+                        <span className="text-foreground/10">·</span>
+                        <CountryFlag
+                          code={loc.countryCode}
+                          size={11}
+                          className="inline-block rounded-[2px]"
+                        />
+                      </p>
+                    </div>
+                    {activeCity?.id === loc.id && (
+                      <span className="shrink-0 rounded-full bg-foreground/[0.06] px-2.5 py-0.5 text-[10px] font-semibold text-foreground/30">
+                        Current
+                      </span>
+                    )}
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            )}
+
+            {/* ── Airports ────────────────────────────────────── */}
+            {localLocations.airports.length > 0 && (
+              <Command.Group heading="Airports">
+                {localLocations.airports.map((loc) => (
+                  <Command.Item
+                    key={loc.id}
+                    value={loc.id}
+                    keywords={[
+                      loc.code,
+                      loc.name,
+                      loc.countryCode,
+                      loc.displayName,
+                    ]}
+                    onSelect={() => onSelect(locationToCity(loc))}
+                    className="search-item"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+                      <CountryFlag
+                        code={loc.countryCode}
+                        size={18}
+                        className="shrink-0 rounded-[4px]"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate text-[14px] font-normal text-foreground/80">
+                        <HighlightMatch text={loc.name} query={query} />
+                      </p>
+                      <p className="flex items-center gap-2 text-[12px] text-foreground/30 mt-0.5">
+                        <HighlightMatch text={loc.code} query={query} />
+                        <span className="text-foreground/10">·</span>
+                        <span className="truncate">
+                          <HighlightMatch
+                            text={loc.displayName
+                              .replace(loc.name, "")
+                              .replace(/^ — /, "")}
+                            query={query}
+                          />
                         </span>
+                      </p>
+                    </div>
+                    {activeCity?.iata === loc.code && (
+                      <span className="shrink-0 rounded-full bg-foreground/[0.06] px-2.5 py-0.5 text-[10px] font-semibold text-foreground/30">
+                        Current
+                      </span>
+                    )}
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            )}
+
+            {/* ── Places (Nominatim) ──────────────────────────── */}
+            {geoResults.length > 0 && (
+              <Command.Group heading="Places">
+                {geoResults.map((loc) => (
+                  <Command.Item
+                    key={loc.id}
+                    value={loc.id}
+                    keywords={[
+                      loc.name,
+                      loc.displayName,
+                      loc.countryCode,
+                    ]}
+                    onSelect={() => onSelect(locationToCity(loc))}
+                    className="search-item"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-foreground/[0.04]">
+                      <Globe2 className="h-[18px] w-[18px] text-foreground/25" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate text-[14px] font-normal text-foreground/80">
+                        <HighlightMatch text={loc.name} query={query} />
+                      </p>
+                      <p className="truncate text-[12px] text-foreground/30 mt-0.5">
+                        {loc.displayName}
+                      </p>
+                    </div>
+                    {loc.countryCode && (
+                      <CountryFlag
+                        code={loc.countryCode}
+                        size={16}
+                        className="shrink-0 rounded-[3px]"
+                      />
+                    )}
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            )}
+          </>
+        ) : (
+          <>
+            {/* ── Actions ─────────────────────────────────────── */}
+            {compactQuery &&
+              !globalLoading &&
+              globalFlights.length === 0 &&
+              localFlightMatches.length === 0 && (
+                <Command.Group heading="Actions">
+                  <Command.Item
+                    value={`lookup:${query}`}
+                    keywords={[query]}
+                    onSelect={() => void runLookup()}
+                    disabled={lookupBusy}
+                    className="search-item"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-foreground/[0.05]">
+                      {lookupBusy ? (
+                        <Loader2 className="h-[18px] w-[18px] animate-spin text-foreground/30" />
+                      ) : (
+                        <Search className="h-[18px] w-[18px] text-foreground/30" />
                       )}
                     </div>
-                    <div className="flex items-center gap-1.5 text-[10px] text-foreground/25">
-                      <span className="font-mono">
-                        <HighlightMatch
-                          text={flight.icao24.toUpperCase()}
-                          query={query}
-                        />
-                      </span>
-                      <span className="text-foreground/10">·</span>
-                      {flag && <span className="text-[10px]">{flag}</span>}
-                      <span>{flight.originCountry}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate text-[14px] font-normal text-foreground/70">
+                        Search worldwide for &quot;{query.trim()}&quot;
+                      </p>
+                      <p className="text-[12px] text-foreground/25 mt-0.5">
+                        {isPureHexQuery
+                          ? "ICAO24 hex lookup"
+                          : "Callsign / flight number lookup"}
+                      </p>
                     </div>
-                  </div>
+                  </Command.Item>
+                </Command.Group>
+              )}
 
-                  {/* Flight info chips */}
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {flight.baroAltitude != null && (
-                      <span className="inline-flex items-center gap-1 rounded-md bg-foreground/3 px-1.5 py-0.5 text-[9px] font-medium text-foreground/30">
-                        <AltitudeDot altitude={flight.baroAltitude} />
-                        {formatAltitude(flight.baroAltitude, settings.unitSystem)}
-                      </span>
-                    )}
-                    {flight.velocity != null && (
-                      <span className="inline-flex items-center gap-1 rounded-md bg-foreground/3 px-1.5 py-0.5 text-[9px] font-medium text-foreground/30">
-                        <Gauge className="h-2.5 w-2.5 text-foreground/20" />
-                        {formatSpeed(flight.velocity, settings.unitSystem)}
-                      </span>
-                    )}
-                    {flight.trueTrack != null && (
-                      <span className="inline-flex items-center gap-1 rounded-md bg-foreground/3 px-1.5 py-0.5 text-[9px] font-medium text-foreground/30">
-                        <ArrowUpRight
-                          className="h-2.5 w-2.5 text-foreground/20"
-                          style={{
-                            transform: `rotate(${flight.trueTrack - 45}deg)`,
-                          }}
-                        />
-                        {headingToCardinal(flight.trueTrack)}
-                      </span>
-                    )}
+            {/* ── Global flight results ───────────────────────── */}
+            {globalLoading && (
+              <Command.Group heading="Live Flights">
+                <Command.Item
+                  value="__flight-loading__"
+                  disabled
+                  className="search-item opacity-50"
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+                    <Loader2 className="h-4 w-4 animate-spin text-foreground/25" />
                   </div>
-
-                  {/* FPV button — visible on hover/keyboard-select */}
-                  {!flight.onGround && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void openFlight(flight.icao24, true);
-                      }}
-                      className="shrink-0 opacity-0 group-data-[selected=true]/item:opacity-100 inline-flex h-6 items-center gap-1 rounded-md border border-sky-400/20 bg-sky-500/10 px-1.5 text-[9px] font-semibold uppercase tracking-wide text-sky-300/80 transition-all hover:bg-sky-500/20"
-                      aria-label={`Open ${cs} in FPV`}
-                    >
-                      <Eye className="h-2.5 w-2.5" />
-                      FPV
-                    </button>
-                  )}
+                  <span className="text-[14px] font-normal text-foreground/35">
+                    Searching live flights worldwide…
+                  </span>
                 </Command.Item>
-              );
-            })}
-          </Command.Group>
-        )}
+              </Command.Group>
+            )}
 
-        {/* ── Featured cities ───────────────────────────────────── */}
-        {featured.length > 0 && (
-          <Command.Group
-            heading={query ? "Featured Cities" : "Popular Airports"}
-          >
-            {featured.map((city) => (
-              <Command.Item
-                key={city.id}
-                value={`city:${city.id}:${city.name}`}
-                keywords={[city.name, city.iata, city.country]}
-                onSelect={() => onSelect(city)}
-                className="search-item"
-              >
-                <div
-                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
-                    activeCity?.id === city.id ? "bg-foreground/8" : "bg-foreground/4"
-                  }`}
-                >
-                  <MapPin
-                    className={`h-3.5 w-3.5 ${
-                      activeCity?.id === city.id
-                        ? "text-foreground/60"
-                        : "text-foreground/35"
-                    }`}
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="truncate text-[13px] font-medium text-foreground/80">
-                    <HighlightMatch text={city.name} query={query} />
-                  </p>
-                  <p className="text-[10px] font-medium text-foreground/25">
-                    <HighlightMatch text={city.iata} query={query} />
-                    <span className="text-foreground/10"> · </span>
-                    {city.country}
-                  </p>
-                </div>
-                {activeCity?.id === city.id && (
-                  <span className="shrink-0 rounded-full bg-foreground/6 px-1.5 py-px text-[8px] font-bold uppercase tracking-wider text-foreground/30">
-                    Current
-                  </span>
-                )}
-              </Command.Item>
-            ))}
-          </Command.Group>
-        )}
+            {!globalLoading && globalFlights.length > 0 && (
+              <Command.Group heading="Live Flights">
+                {globalFlights.map((flight) => flightItem(flight, true))}
+              </Command.Group>
+            )}
 
-        {/* ── Airport results ───────────────────────────────────── */}
-        {airports.length > 0 && (
-          <Command.Group heading="Airports">
-            {airports.map((airport) => (
-              <Command.Item
-                key={airport.iata}
-                value={`airport:${airport.iata}:${airport.name}`}
-                keywords={[
-                  airport.iata,
-                  airport.city,
-                  airport.country,
-                  airport.name,
-                ]}
-                onSelect={() => onSelect(airportToCity(airport))}
-                className="search-item"
-              >
-                <div
-                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
-                    activeCity?.iata === airport.iata
-                      ? "bg-foreground/8"
-                      : "bg-foreground/4"
-                  }`}
-                >
-                  <MapPin
-                    className={`h-3.5 w-3.5 ${
-                      activeCity?.iata === airport.iata
-                        ? "text-foreground/60"
-                        : "text-foreground/35"
-                    }`}
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="truncate text-[13px] font-medium text-foreground/80">
-                    <HighlightMatch text={airport.name} query={query} />
-                  </p>
-                  <p className="text-[10px] font-medium text-foreground/25">
-                    <HighlightMatch text={airport.iata} query={query} />
-                    <span className="text-foreground/10"> · </span>
-                    <HighlightMatch text={airport.city} query={query} />,{" "}
-                    {airport.country}
-                  </p>
-                </div>
-                {activeCity?.iata === airport.iata && (
-                  <span className="shrink-0 rounded-full bg-foreground/6 px-1.5 py-px text-[8px] font-bold uppercase tracking-wider text-foreground/30">
-                    Current
-                  </span>
-                )}
-              </Command.Item>
-            ))}
-          </Command.Group>
+            {/* ── Nearby local flights ────────────────────────── */}
+            {!globalLoading &&
+              globalFlights.length === 0 &&
+              localFlightMatches.length > 0 && (
+                <Command.Group heading="Nearby">
+                  {localFlightMatches.map((flight) =>
+                    flightItem(flight, false),
+                  )}
+                </Command.Group>
+              )}
+          </>
         )}
 
         {/* ── SR-only result count ──────────────────────────────── */}
         <div className="sr-only" aria-live="polite" role="status">
           {query
             ? `${totalResults} result${totalResults !== 1 ? "s" : ""} found`
-            : `${CITIES.length} featured airports`}
+            : mode === "locations"
+              ? "Search 9,000+ airports and places worldwide"
+              : "Search live flights globally by callsign or hex"}
         </div>
 
         {/* ── Footer hint ───────────────────────────────────────── */}
-        {!query && !showRecents && (
-          <div className="flex items-center justify-center gap-2 py-4">
-            <p className="text-[10px] text-foreground/12 font-medium">
-              Search 9,000+ airports worldwide
+        {!query && (
+          <div className="flex items-center justify-center py-8">
+            <p className="text-[12px] text-foreground/12 font-normal">
+              {mode === "locations"
+                ? "Search 9,000+ airports and places worldwide"
+                : "Search live flights globally by callsign or hex"}
             </p>
           </div>
         )}
