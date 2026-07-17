@@ -1,8 +1,14 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { ThemeProvider } from "@wrksz/themes/next";
 import { Toaster } from "sonner";
+import {
+  DEFAULT_DESCRIPTION,
+  DEFAULT_TITLE,
+  SITE_NAME,
+  SITE_URL,
+} from "@/lib/seo";
 import "./globals.css";
 
 const inter = Inter({
@@ -14,19 +20,14 @@ const inter = Inter({
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 const GA_ID_VALID = GA_ID && /^G-[A-Z0-9]+$/.test(GA_ID) ? GA_ID : null;
 
-const title = "Aeris - Real-Time 3D Flight Tracking";
-const description =
-  "Track live flights in stunning 3D over the world's busiest airspaces. See real-time ADS-B data with altitude-aware rendering - low altitudes glow cyan, high altitudes shift to gold. Free and open source.";
-const siteUrl = "https://aeris.edbn.me";
-
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: title,
+    default: DEFAULT_TITLE,
     template: "%s | Aeris",
   },
-  description,
-  applicationName: "Aeris",
+  description: DEFAULT_DESCRIPTION,
+  applicationName: SITE_NAME,
   keywords: [
     "flight tracker",
     "live flight tracker",
@@ -56,15 +57,15 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: siteUrl,
-    siteName: "Aeris",
-    title,
-    description,
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
-    title,
-    description,
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
   },
   robots: {
     index: true,
@@ -78,9 +79,26 @@ export const metadata: Metadata = {
       "max-snippet": -1,
     },
   },
-  alternates: { canonical: siteUrl },
+  alternates: { canonical: SITE_URL },
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      {
+        url: "/favicon/favicon.svg",
+        type: "image/svg+xml",
+        sizes: "any",
+      },
+      {
+        url: "/favicon/favicon-96x96.png",
+        type: "image/png",
+        sizes: "96x96",
+      },
+    ],
+    shortcut: "/favicon/favicon.ico",
+    apple: {
+      url: "/favicon/apple-touch-icon.png",
+      type: "image/png",
+      sizes: "180x180",
+    },
   },
   other: {
     "mobile-web-app-capable": "yes",
@@ -90,6 +108,14 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#000000",
+  colorScheme: "dark",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -97,12 +123,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <meta
-          name="viewport"
-          content="width=device-width, initial-scale=1, viewport-fit=cover"
-        />
-      </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider
           attribute="class"
