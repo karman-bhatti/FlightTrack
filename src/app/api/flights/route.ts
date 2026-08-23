@@ -3,11 +3,13 @@ import { READSB_FETCH_TIMEOUT_MS, MAX_RADIUS_NM } from "@/lib/flight-api-types";
 
 // ── Multi-Provider Proxy ───────────────────────────────────────────────
 //
-// Proxies readsb-format requests to adsb.lol or airplanes.live.
-// Both lack browser-compatible CORS headers, so server-side proxy is required.
+// Proxies readsb-format requests to adsb.lol, adsb.fi, or airplanes.live.
+// These APIs lack browser-compatible CORS headers, so a server-side proxy is
+// required.
 //
 // Usage:
 //   /api/flights?path=/point/lat/lon/radius              → adsb.lol (default)
+//   /api/flights?path=/point/lat/lon/radius&provider=adsbfi → adsb.fi
 //   /api/flights?path=/hex/abcdef&provider=airplanes      → airplanes.live
 //   /api/flights?path=/callsign/BAW123&provider=adsb      → adsb.lol
 //
@@ -17,7 +19,7 @@ import { READSB_FETCH_TIMEOUT_MS, MAX_RADIUS_NM } from "@/lib/flight-api-types";
 
 // ── Provider Configuration ─────────────────────────────────────────────
 
-type ProviderKey = "adsb" | "airplanes";
+type ProviderKey = "adsb" | "adsbfi" | "airplanes";
 
 interface ProviderConfig {
   baseUrl: string;
@@ -32,12 +34,20 @@ const PROVIDERS: Record<ProviderKey, ProviderConfig> = {
     name: "adsb.lol",
     rateMs: 500,
   },
+  adsbfi: {
+    baseUrl: "https://opendata.adsb.fi/api",
+    name: "adsb.fi",
+    rateMs: 1_100, // Public API limit: 1 req/s per IP
+  },
   airplanes: {
     baseUrl: "https://api.airplanes.live/v2",
     name: "airplanes.live",
-    rateMs: 1_100, // 1 req/s documented limit + 100ms margin
+    rateMs: 1_100, // Conservative best-effort floor; no published 2.0.0 quota
   },
 };
+
+const UPSTREAM_USER_AGENT =
+  "AerisFlightTracker/0.8.8 (+https://github.com/kewonit/aeris)";
 
 // ── Server-Side Rate Limiter (per provider, concurrency-safe) ──────────
 
@@ -72,17 +82,56 @@ async function enforceRateLimit(provider: ProviderKey): Promise<void> {
  * - /hex/{hex}                   - 6-char lowercase hex ICAO address
  * - /callsign/{callsign}        - alphanumeric callsign
  */
-const VALID_PATH =
-  /^\/(?:point\/-?\d+(?:\.\d+)?\/-?\d+(?:\.\d+)?\/\d{1,3}|hex\/[0-9a-f]{6}|callsign\/[A-Z0-9-]{1,8})$/i;
+const LOOKUP_PATH = /^\/(?:hex\/[0-9a-f]{6}|callsign\/[A-Z0-9-]{1,8})$/i;
+const POINT_PATH =
+  /^\/point\/(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/;
+
+function validatePath(path: string): string | null {
+  if (LOOKUP_PATH.test(path)) return null;
+
+  const pointMatch = path.match(POINT_PATH);
+  if (!pointMatch) return "Invalid or missing 'path' parameter";
+
+  const lat = Number(pointMatch[1]);
+  const lon = Number(pointMatch[2]);
+  const radius = Number(pointMatch[3]);
+
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+    return "Latitude must be between -90 and 90";
+  }
+  if (!Number.isFinite(lon) || lon < -180 || lon > 180) {
+    return "Longitude must be between -180 and 180";
+  }
+  if (!Number.isFinite(radius) || radius < 0 || radius > MAX_RADIUS_NM) {
+    return `Radius must be between 0 and ${MAX_RADIUS_NM} NM`;
+  }
+
+  return null;
+}
+
+function buildUpstreamUrl(provider: ProviderKey, path: string): string {
+  const config = PROVIDERS[provider];
+
+  if (provider !== "adsbfi") return `${config.baseUrl}${path}`;
+
+  const pointMatch = path.match(POINT_PATH);
+  if (pointMatch) {
+    const [, lat, lon, radius] = pointMatch;
+    return `${config.baseUrl}/v3/lat/${lat}/lon/${lon}/dist/${radius}`;
+  }
+
+  return `${config.baseUrl}/v2${path}`;
+}
 
 // ── Handler ────────────────────────────────────────────────────────────
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const path = request.nextUrl.searchParams.get("path")?.trim();
 
-  if (!path || !VALID_PATH.test(path)) {
+  const pathError = path ? validatePath(path) : "Invalid or missing 'path' parameter";
+  if (!path || pathError) {
     return NextResponse.json(
-      { error: "Invalid or missing 'path' parameter" },
+      { error: pathError },
       { status: 400, headers: { "Cache-Control": "no-store" } },
     );
   }
@@ -91,24 +140,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const providerRaw =
     request.nextUrl.searchParams.get("provider")?.toLowerCase() ?? "adsb";
 
-  if (providerRaw !== "adsb" && providerRaw !== "airplanes") {
+  if (
+    providerRaw !== "adsb" &&
+    providerRaw !== "adsbfi" &&
+    providerRaw !== "airplanes"
+  ) {
     return NextResponse.json(
-      { error: "Invalid provider. Use 'adsb' or 'airplanes'." },
+      { error: "Invalid provider. Use 'adsb', 'adsbfi', or 'airplanes'." },
       { status: 400, headers: { "Cache-Control": "no-store" } },
     );
   }
 
   const provider: ProviderKey = providerRaw;
   const config = PROVIDERS[provider];
-
-  // Validate radius for /point endpoints against max allowed
-  const pointMatch = path.match(/^\/point\/[^/]+\/[^/]+\/(\d+)$/);
-  if (pointMatch && parseInt(pointMatch[1], 10) > MAX_RADIUS_NM) {
-    return NextResponse.json(
-      { error: `Radius exceeds maximum of ${MAX_RADIUS_NM} NM` },
-      { status: 400, headers: { "Cache-Control": "no-store" } },
-    );
-  }
 
   // Enforce server-side rate limit for this provider
   await enforceRateLimit(provider);
@@ -117,9 +161,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const timer = setTimeout(() => controller.abort(), READSB_FETCH_TIMEOUT_MS);
 
   try {
-    const upstream = await fetch(`${config.baseUrl}${path}`, {
+    const upstream = await fetch(buildUpstreamUrl(provider, path), {
       signal: controller.signal,
-      headers: { Accept: "application/json" },
+      headers: {
+        Accept: "application/json",
+        "User-Agent": UPSTREAM_USER_AGENT,
+      },
     });
 
     clearTimeout(timer);

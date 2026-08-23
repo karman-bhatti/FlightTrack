@@ -22,7 +22,7 @@ Aeris renders live air traffic over the world's busiest airspaces on a premium d
 | Map       | MapLibre GL JS                                                   |
 | WebGL     | Deck.gl 9 (ScenegraphLayer, IconLayer, PathLayer, MapboxOverlay) |
 | Animation | Motion (Framer Motion)                                           |
-| Data      | Airplanes.live / adsb.lol / OpenSky (3-tier fallback)            |
+| Data      | adsb.lol / adsb.fi / airplanes.live / OpenSky (4-tier fallback)  |
 | Hosting   | Vercel                                                           |
 
 ## Getting Started
@@ -43,7 +43,7 @@ src/
 │   ├── globals.css            Tailwind config, theme vars
 │   ├── layout.tsx             Root layout (Inter font)
 │   ├── page.tsx               Entry - renders <FlightTracker />
-│   └── api/flights/route.ts   adsb.lol reverse proxy (CORS workaround + rate limit)
+│   └── api/flights/route.ts   readsb provider proxy (validation + rate limiting)
 ├── components/
 │   ├── flight-tracker.tsx     Orchestrator - state, camera, layers, UI
 │   ├── map/
@@ -64,13 +64,13 @@ src/
 │   └── use-trail-history.ts   Trail accumulation + Catmull-Rom smoothing
 └── lib/
     ├── cities.ts              Curated aviation hub presets
-    ├── flight-api.ts          Barrel re-export for the 3-tier flight client
-    ├── flight-api-client.ts   airplanes.live → adsb.lol → OpenSky fallback chain
+    ├── flight-api.ts          Barrel re-export for the 4-tier flight client
+    ├── flight-api-client.ts   adsb.lol → adsb.fi → airplanes.live → OpenSky fallback chain
     ├── flight-api-parsing.ts  readsb JSON → FlightState normalization
     ├── flight-api-types.ts    Shared types for ADS-B providers
     ├── flight-utils.ts        Altitude→color, unit conversions
     ├── map-styles.ts          Map style definitions
-    ├── opensky.ts             OpenSky API client + types (Tier 3 fallback)
+    ├── opensky.ts             OpenSky API client + types (Tier 4 fallback)
     └── utils.ts               cn() utility
 ```
 
@@ -120,7 +120,7 @@ All variables are optional - Aeris runs with no secrets. See `.env.example` for 
 | `OPENSKY_CLIENT_SECRET` | No       | OAuth2 secret that pairs with `OPENSKY_CLIENT_ID`. Set both or neither.                                                                                                                                               |
 | `OPENAIP_API_KEY`       | No       | API key used by the airspace vector-tile proxy `src/app/api/airspace-tiles/route.ts`. Without it the airspace overlay is disabled cleanly and the client skips OpenAIP tile requests; flight rendering is unaffected. |
 
-Live flight data (airplanes.live, adsb.lol) is called directly from the browser with CORS - no credentials needed.
+Live readsb data (adsb.lol, adsb.fi, then airplanes.live) is fetched through the server proxy; OpenSky is the final automatic fallback. No provider credentials are configured. The adsb.fi public API is limited to one request per second per IP for personal, non-commercial use and is credited in the application as required by its terms.
 
 ## License
 
