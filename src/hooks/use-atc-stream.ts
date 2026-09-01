@@ -203,7 +203,7 @@ export function useAtcStream(): UseAtcStreamReturn {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: activeFeed.name,
         artist: `${activeFeed.icao} · ${activeFeed.frequency}`,
-        album: "Aeris ATC",
+        album: "Jetta ATC",
       });
 
       navigator.mediaSession.playbackState = "playing";

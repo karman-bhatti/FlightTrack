@@ -1,6 +1,6 @@
 "use client";
 
-import {
+import React, {
   createContext,
   useContext,
   useState,
@@ -36,6 +36,11 @@ export type Settings = {
   showWeatherRadar: boolean;
   weatherRadarOpacity: number;
   showDebugData: boolean;
+  overheadEnabled: boolean;
+  overheadAddress: string;
+  overheadCoordinates: [longitude: number, latitude: number] | null;
+  overheadRadiusKm: number;
+  overheadAutoSelect: boolean;
 };
 
 export const TRAIL_THICKNESS_MIN = 0.5;
@@ -48,6 +53,8 @@ export const AIRSPACE_OPACITY_MIN = 0.25;
 export const AIRSPACE_OPACITY_MAX = 1.0;
 export const WEATHER_RADAR_OPACITY_MIN = 0.15;
 export const WEATHER_RADAR_OPACITY_MAX = 0.9;
+export const OVERHEAD_RADIUS_MIN = 1;
+export const OVERHEAD_RADIUS_MAX = 50;
 
 export function normalizeSettings(input: Settings): Settings {
   return {
@@ -88,6 +95,34 @@ export function normalizeSettings(input: Settings): Settings {
           WEATHER_RADAR_OPACITY_MAX,
         )
       : DEFAULT_SETTINGS.weatherRadarOpacity,
+    overheadEnabled:
+      typeof input.overheadEnabled === "boolean"
+        ? input.overheadEnabled
+        : DEFAULT_SETTINGS.overheadEnabled,
+    overheadAddress:
+      typeof input.overheadAddress === "string"
+        ? input.overheadAddress
+        : DEFAULT_SETTINGS.overheadAddress,
+    overheadCoordinates:
+      Array.isArray(input.overheadCoordinates) &&
+      input.overheadCoordinates.length === 2 &&
+      Number.isFinite(input.overheadCoordinates[0]) &&
+      Number.isFinite(input.overheadCoordinates[1])
+        ? [input.overheadCoordinates[0], input.overheadCoordinates[1]]
+        : null,
+    overheadRadiusKm: Number.isFinite(input.overheadRadiusKm)
+      ? Math.round(
+          clamp(
+            input.overheadRadiusKm,
+            OVERHEAD_RADIUS_MIN,
+            OVERHEAD_RADIUS_MAX,
+          ),
+        )
+      : DEFAULT_SETTINGS.overheadRadiusKm,
+    overheadAutoSelect:
+      typeof input.overheadAutoSelect === "boolean"
+        ? input.overheadAutoSelect
+        : DEFAULT_SETTINGS.overheadAutoSelect,
   };
 }
 
@@ -110,10 +145,16 @@ export const DEFAULT_SETTINGS: Settings = {
   showWeatherRadar: false,
   weatherRadarOpacity: 0.5,
   showDebugData: false,
+  overheadEnabled: false,
+  overheadAddress: "",
+  overheadCoordinates: null,
+  overheadRadiusKm: 10,
+  overheadAutoSelect: true,
 };
 
-const STORAGE_KEY = "aeris:settings";
-const STORAGE_VERSION = 6;
+const STORAGE_KEY = "jetta:settings";
+const LEGACY_STORAGE_KEY = "aeris:settings";
+const STORAGE_VERSION = 7;
 const WRITE_DEBOUNCE_MS = 300;
 
 const LEGACY_TRAIL_THICKNESS_DEFAULT = 1.3;
@@ -169,6 +210,7 @@ function isValidSettings(obj: unknown): obj is Settings {
   if (typeof obj !== "object" || obj === null) return false;
   const s = obj as Record<string, unknown>;
   return (
+    (s.themeMode === "dark" || s.themeMode === "light" || s.themeMode === "auto") &&
     typeof s.autoOrbit === "boolean" &&
     typeof s.orbitSpeed === "number" &&
     Number.isFinite(s.orbitSpeed) &&
@@ -206,14 +248,25 @@ function isValidSettings(obj: unknown): obj is Settings {
     Number.isFinite(s.weatherRadarOpacity) &&
     s.weatherRadarOpacity >= WEATHER_RADAR_OPACITY_MIN &&
     s.weatherRadarOpacity <= WEATHER_RADAR_OPACITY_MAX &&
-    typeof s.showDebugData === "boolean"
+    typeof s.showDebugData === "boolean" &&
+    typeof s.overheadEnabled === "boolean" &&
+    typeof s.overheadAddress === "string" &&
+    (s.overheadCoordinates === null ||
+      (Array.isArray(s.overheadCoordinates) &&
+        s.overheadCoordinates.length === 2 &&
+        typeof s.overheadCoordinates[0] === "number" &&
+        typeof s.overheadCoordinates[1] === "number")) &&
+    typeof s.overheadRadiusKm === "number" &&
+    typeof s.overheadAutoSelect === "boolean"
   );
 }
 
 function loadSettings(): Settings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw =
+      localStorage.getItem(STORAGE_KEY) ??
+      localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return DEFAULT_SETTINGS;
     const envelope: StorageEnvelope = JSON.parse(raw);
     if (envelope.v !== STORAGE_VERSION || !isValidSettings(envelope.data)) {
@@ -310,9 +363,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setOverride({ ...DEFAULT_SETTINGS });
   }, []);
 
-  return (
-    <SettingsContext.Provider value={{ settings, update, reset }}>
-      {children}
-    </SettingsContext.Provider>
+  return React.createElement(
+    SettingsContext.Provider,
+    { value: { settings, update, reset } },
+    children,
   );
 }

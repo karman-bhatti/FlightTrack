@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Page Not Found",
   description:
-    "The page you are looking for does not exist. Return to Aeris to track live flights in 3D.",
+    "The page you are looking for does not exist. Return to Jetta to track live flights in 3D.",
   alternates: { canonical: null },
   robots: { index: false, follow: true },
 };
@@ -68,7 +68,7 @@ export default function NotFound() {
           textDecoration: "none",
         }}
       >
-        Back to Aeris
+        Back to Jetta
       </Link>
     </div>
   );

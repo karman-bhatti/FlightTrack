@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { motion } from "motion/react";
 import {
   RotateCw,
@@ -14,6 +14,13 @@ import {
   Eye,
   CloudRain,
   Cpu,
+  Sun,
+  Plane,
+  MapPin,
+  Navigation,
+  Search,
+  Loader2,
+  X,
 } from "lucide-react";
 import {
   useSettings,
@@ -25,10 +32,14 @@ import {
   TRAIL_THICKNESS_MAX,
   TRAIL_DISTANCE_MIN,
   TRAIL_DISTANCE_MAX,
+  OVERHEAD_RADIUS_MIN,
+  OVERHEAD_RADIUS_MAX,
   type OrbitDirection,
   type UnitSystem,
+  type ThemeMode,
   type Settings,
 } from "@/hooks/use-settings";
+import type { City } from "@/lib/cities";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
 import { SHORTCUTS } from "@/components/ui/keyboard-shortcuts-help";
@@ -47,6 +58,12 @@ const ORBIT_DIRECTIONS: { label: string; value: OrbitDirection }[] = [
   { label: "Counter", value: "counter-clockwise" },
 ];
 
+const THEME_OPTIONS: { label: string; value: ThemeMode }[] = [
+  { label: "Dark", value: "dark" },
+  { label: "Light", value: "light" },
+  { label: "Auto (Map)", value: "auto" },
+];
+
 const ALTITUDE_DISPLAY_MODES: {
   label: string;
   value: Settings["altitudeDisplayMode"];
@@ -63,8 +80,10 @@ const UNIT_SYSTEMS: { label: string; value: UnitSystem }[] = [
 
 export function SettingsContent({
   airspaceAvailable = true,
+  onSelectCity,
 }: {
   airspaceAvailable?: boolean;
+  onSelectCity?: (city: City) => void;
 }) {
   const { settings, update, reset } = useSettings();
   const showAirspace = airspaceAvailable && settings.showAirspace;
@@ -142,6 +161,13 @@ export function SettingsContent({
           value={settings.altitudeDisplayMode}
           onChange={(v) => update("altitudeDisplayMode", v)}
         />
+        <SegmentRow
+          icon={<Sun className="h-4 w-4" />}
+          title="Theme"
+          options={THEME_OPTIONS}
+          value={settings.themeMode}
+          onChange={(v) => update("themeMode", v)}
+        />
 
         {/* ── Units ── */}
         <SectionHeader title="Units" />
@@ -153,6 +179,33 @@ export function SettingsContent({
           value={settings.unitSystem}
           onChange={(v) => update("unitSystem", v)}
         />
+
+        {/* ── Overhead Planes ── */}
+        <SectionHeader title="Overhead Planes" />
+
+        <SettingRow
+          icon={<Plane className="h-4 w-4" />}
+          title="Track overhead planes"
+          description="Alert and auto-pull flight info when a plane flies above your address"
+          checked={settings.overheadEnabled}
+          onChange={(v) => update("overheadEnabled", v)}
+        />
+
+        {settings.overheadEnabled && (
+          <OverheadAddressSettings
+            address={settings.overheadAddress}
+            coordinates={settings.overheadCoordinates}
+            radiusKm={settings.overheadRadiusKm}
+            autoSelect={settings.overheadAutoSelect}
+            onUpdateAddress={(addr, coords) => {
+              update("overheadAddress", addr);
+              update("overheadCoordinates", coords);
+            }}
+            onUpdateRadius={(r) => update("overheadRadiusKm", r)}
+            onUpdateAutoSelect={(v) => update("overheadAutoSelect", v)}
+            onNavigateHome={onSelectCity}
+          />
+        )}
 
         {/* ── Airspace ── */}
         <SectionHeader title="Airspace" />
@@ -462,6 +515,261 @@ function WeatherRadarOpacitySlider({
           value={[value]}
           onValueChange={(vals) => onChange(vals[0])}
           aria-label="Weather radar opacity"
+        />
+      </div>
+    </div>
+  );
+}
+
+function OverheadAddressSettings({
+  address,
+  coordinates,
+  radiusKm,
+  autoSelect,
+  onUpdateAddress,
+  onUpdateRadius,
+  onUpdateAutoSelect,
+  onNavigateHome,
+}: {
+  address: string;
+  coordinates: [number, number] | null;
+  radiusKm: number;
+  autoSelect: boolean;
+  onUpdateAddress: (
+    address: string,
+    coordinates: [number, number] | null,
+  ) => void;
+  onUpdateRadius: (r: number) => void;
+  onUpdateAutoSelect: (v: boolean) => void;
+  onNavigateHome?: (city: City) => void;
+}) {
+  const [query, setQuery] = useState(address);
+  const [isSearching, setIsSearching] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleSearch = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const trimmed = query.trim();
+    if (!trimmed) return;
+
+    setIsSearching(true);
+    setErrorMsg(null);
+
+    try {
+      const res = await fetch(`/api/geocode?q=${encodeURIComponent(trimmed)}`);
+      if (!res.ok) {
+        throw new Error("Location search failed");
+      }
+      const data = (await res.json()) as Array<{
+        lat: string;
+        lon: string;
+        display_name: string;
+      }>;
+      if (!Array.isArray(data) || data.length === 0) {
+        setErrorMsg("No matching location found");
+        return;
+      }
+
+      const first = data[0];
+      const lat = parseFloat(first.lat);
+      const lon = parseFloat(first.lon);
+      if (Number.isNaN(lat) || Number.isNaN(lon)) {
+        setErrorMsg("Invalid coordinate response");
+        return;
+      }
+
+      const resolvedName = first.display_name;
+      onUpdateAddress(resolvedName, [lon, lat]);
+      setQuery(resolvedName);
+    } catch {
+      setErrorMsg("Failed to find address");
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleGeolocation = () => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      setErrorMsg("Geolocation not supported on this browser");
+      return;
+    }
+
+    setIsSearching(true);
+    setErrorMsg(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        const fallbackName = `${latitude.toFixed(4)}°, ${longitude.toFixed(4)}°`;
+        try {
+          const res = await fetch(
+            `/api/geocode?q=${encodeURIComponent(`${latitude},${longitude}`)}`,
+          );
+          if (res.ok) {
+            const data = (await res.json()) as Array<{ display_name: string }>;
+            if (Array.isArray(data) && data[0]?.display_name) {
+              onUpdateAddress(data[0].display_name, [longitude, latitude]);
+              setQuery(data[0].display_name);
+              setIsSearching(false);
+              return;
+            }
+          }
+        } catch {
+          // fallback
+        }
+        onUpdateAddress(`GPS Location (${fallbackName})`, [
+          longitude,
+          latitude,
+        ]);
+        setQuery(`GPS Location (${fallbackName})`);
+        setIsSearching(false);
+      },
+      (err) => {
+        setIsSearching(false);
+        setErrorMsg(err.message || "Location permission denied");
+      },
+      { timeout: 10000, maximumAge: 60000 },
+    );
+  };
+
+  const handleClear = () => {
+    onUpdateAddress("", null);
+    setQuery("");
+    setErrorMsg(null);
+  };
+
+  return (
+    <div className="mx-2 my-2 space-y-2.5 rounded-xl bg-foreground/4 p-3 ring-1 ring-foreground/8">
+      <form onSubmit={handleSearch} className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <label className="text-[11px] font-semibold tracking-wider text-foreground/60 uppercase">
+            Address / Location
+          </label>
+          <span className="text-[10px] text-foreground/45">
+            Geocoded via OpenStreetMap
+          </span>
+        </div>
+        <div className="flex gap-1.5">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="e.g. 1600 Pennsylvania Ave NW, DC"
+              className="h-8 w-full rounded-lg bg-foreground/6 pl-2.5 pr-7 text-[12px] text-foreground placeholder:text-foreground/35 focus:outline-none focus:ring-1 focus:ring-foreground/25"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={handleClear}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground"
+                aria-label="Clear address"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          <button
+            type="submit"
+            disabled={isSearching || !query.trim()}
+            className="inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-foreground/10 px-2.5 text-[11px] font-medium text-foreground transition-colors hover:bg-foreground/15 disabled:opacity-40"
+          >
+            {isSearching ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Search className="h-3.5 w-3.5" />
+            )}
+            <span>Set</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleGeolocation}
+            disabled={isSearching}
+            title="Use current GPS location"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-foreground/10 text-foreground/70 transition-colors hover:bg-foreground/15 hover:text-foreground disabled:opacity-40"
+          >
+            <Navigation className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        {errorMsg && (
+          <p className="text-[11px] font-medium text-destructive">{errorMsg}</p>
+        )}
+      </form>
+
+      {coordinates && (
+        <div className="flex flex-col gap-2 border-t border-foreground/8 pt-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
+              <span className="truncate text-[11px] font-medium text-foreground/85">
+                {address || "Active Address"}
+              </span>
+            </div>
+            <span className="shrink-0 font-mono text-[10px] text-foreground/50">
+              {coordinates[1].toFixed(3)}°, {coordinates[0].toFixed(3)}°
+            </span>
+          </div>
+
+          {onNavigateHome && (
+            <button
+              type="button"
+              onClick={() => {
+                onNavigateHome({
+                  id: "overhead-custom",
+                  name: address.split(",")[0] || "Home Airspace",
+                  country: "",
+                  iata: "HOM",
+                  coordinates: coordinates,
+                  radius: 2.49,
+                });
+              }}
+              className="inline-flex h-7 items-center justify-center gap-1.5 rounded-lg bg-foreground/8 text-[11px] font-medium text-foreground/85 transition-colors hover:bg-foreground/14 hover:text-foreground"
+            >
+              <MapPin className="h-3 w-3" />
+              Fly map to this location
+            </button>
+          )}
+        </div>
+      )}
+
+      <OverheadRadiusSlider value={radiusKm} onChange={onUpdateRadius} />
+
+      <SettingRow
+        icon={<Plane className="h-4 w-4" />}
+        title="Auto-pull flight card"
+        description="Automatically select plane when it enters overhead airspace"
+        checked={autoSelect}
+        onChange={onUpdateAutoSelect}
+      />
+    </div>
+  );
+}
+
+function OverheadRadiusSlider({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="flex w-full items-center gap-3.5 rounded-xl px-1 py-1.5 text-left">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div className="flex items-center justify-between">
+          <p className="text-[12px] font-medium text-foreground/80">
+            Detection radius
+          </p>
+          <span className="tabular-nums text-[11px] font-semibold text-foreground/60">
+            {value} km ({(value * 0.539957).toFixed(1)} NM)
+          </span>
+        </div>
+        <Slider
+          min={OVERHEAD_RADIUS_MIN}
+          max={OVERHEAD_RADIUS_MAX}
+          step={1}
+          value={[value]}
+          onValueChange={(vals) => onChange(vals[0])}
+          aria-label="Overhead alert radius"
         />
       </div>
     </div>
@@ -941,7 +1249,7 @@ export function AboutContent() {
     <ScrollArea className="h-full">
       <div className="flex flex-col gap-5 p-5 pt-3">
         <h3 className="text-[20px] font-bold tracking-tight text-foreground/90">
-          Aeris
+          Jetta
         </h3>
 
         <div className="space-y-3 text-[13px] leading-relaxed text-foreground/55">

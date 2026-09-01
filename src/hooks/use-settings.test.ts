@@ -99,3 +99,19 @@ test("settings migration preserves partial custom trail settings", () => {
   assert.equal(customDistance.trailThickness, 1.3);
   assert.equal(customDistance.trailDistance, 96);
 });
+
+test("settings normalization clamps overheadRadiusKm and validates themeMode", () => {
+  const settings = normalizeSettings({
+    ...DEFAULT_SETTINGS,
+    themeMode: "light",
+    overheadEnabled: true,
+    overheadAddress: "1600 Pennsylvania Ave NW, Washington, DC",
+    overheadCoordinates: [-77.0365, 38.8977],
+    overheadRadiusKm: 120, // out of range
+  });
+
+  assert.equal(settings.themeMode, "light");
+  assert.equal(settings.overheadEnabled, true);
+  assert.equal(settings.overheadRadiusKm, 50); // clamped to MAX
+  assert.deepEqual(settings.overheadCoordinates, [-77.0365, 38.8977]);
+});

@@ -376,7 +376,13 @@ function PanelDialog({
                 )}
                 {activeTab === "settings" && (
                   <TabContent key="settings">
-                    <SettingsContent airspaceAvailable={airspaceAvailable} />
+                    <SettingsContent
+                      airspaceAvailable={airspaceAvailable}
+                      onSelectCity={(city) => {
+                        onSelectCity(city);
+                        onClose();
+                      }}
+                    />
                   </TabContent>
                 )}
                 {activeTab === "shortcuts" && (

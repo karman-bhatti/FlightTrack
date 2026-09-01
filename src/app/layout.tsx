@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
     default: DEFAULT_TITLE,
-    template: "%s | Aeris",
+    template: "%s | Jetta",
   },
   description: DEFAULT_DESCRIPTION,
   applicationName: SITE_NAME,
@@ -43,7 +43,8 @@ export const metadata: Metadata = {
     "aviation tracker",
     "track flights live",
     "free flight tracker",
-    "aeris flight tracker",
+    "jetta flight tracker",
+    "jetta",
     "opensky network",
     "airplanes live",
     "adsb tracker",
@@ -104,7 +105,7 @@ export const metadata: Metadata = {
     "mobile-web-app-capable": "yes",
     "apple-mobile-web-app-capable": "yes",
     "apple-mobile-web-app-status-bar-style": "black-translucent",
-    "apple-mobile-web-app-title": "Aeris",
+    "apple-mobile-web-app-title": "Jetta",
   },
 };
 

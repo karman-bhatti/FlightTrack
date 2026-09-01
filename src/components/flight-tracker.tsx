@@ -49,6 +49,8 @@ import { useAtcStream } from "@/hooks/use-atc-stream";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useAirportBoard } from "@/hooks/use-airport-board";
 import { MobileFlightToast } from "@/components/ui/mobile-flight-toast";
+import { toast } from "sonner";
+import { haversineDistanceRad } from "@/lib/geo";
 import type { MapStyle } from "@/lib/map-styles";
 import type { City } from "@/lib/cities";
 import type { FlightState } from "@/lib/opensky";
@@ -147,10 +149,16 @@ function FlightTrackerInner({
   const isMobile = useIsMobile();
   const showAirspace = airspaceAvailable && settings.showAirspace;
 
-  // Sync document theme with current map style (dark/light)
+  // Sync document theme with user setting or current map style (dark/light)
   useEffect(() => {
-    setTheme(mapStyle.dark ? "dark" : "light");
-  }, [mapStyle.dark, setTheme]);
+    if (settings.themeMode === "light") {
+      setTheme("light");
+    } else if (settings.themeMode === "dark") {
+      setTheme("dark");
+    } else {
+      setTheme(mapStyle.dark ? "dark" : "light");
+    }
+  }, [settings.themeMode, mapStyle.dark, setTheme]);
 
   useEffect(() => {
     if (!isMobile || !leftPanel) return;
@@ -321,6 +329,71 @@ function FlightTrackerInner({
     const timeout = window.setTimeout(() => setLeftPanel(null), 0);
     return () => window.clearTimeout(timeout);
   }, [airportBoard.isActive, leftPanel, selectedIcao24]);
+
+  // ── Overhead flight detection & auto-pull ────────────────────────────
+  const lastAlertedIcaoRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (
+      !settings.overheadEnabled ||
+      !settings.overheadCoordinates ||
+      settings.overheadCoordinates.length !== 2
+    ) {
+      lastAlertedIcaoRef.current = null;
+      return;
+    }
+
+    const [homeLng, homeLat] = settings.overheadCoordinates;
+    const radiusKm = settings.overheadRadiusKm ?? 10;
+
+    let closestFlight: FlightState | null = null;
+    let closestDistKm = Infinity;
+
+    for (const f of displayFlights) {
+      if (f.onGround || f.longitude == null || f.latitude == null) continue;
+      const distKm =
+        haversineDistanceRad(homeLng, homeLat, f.longitude, f.latitude) * 6371;
+      if (distKm <= radiusKm && distKm < closestDistKm) {
+        closestDistKm = distKm;
+        closestFlight = f;
+      }
+    }
+
+    if (closestFlight) {
+      if (lastAlertedIcaoRef.current !== closestFlight.icao24) {
+        lastAlertedIcaoRef.current = closestFlight.icao24;
+        const callsign =
+          closestFlight.callsign?.trim() || closestFlight.icao24.toUpperCase();
+        const altText =
+          closestFlight.altitude != null
+            ? `${Math.round(closestFlight.altitude).toLocaleString()} ft`
+            : "In flight";
+        const distText = `${(Math.round(closestDistKm * 10) / 10).toFixed(1)} km away`;
+        const addressLabel = settings.overheadAddress
+          ? ` over ${settings.overheadAddress.split(",")[0]}`
+          : "";
+
+        toast.info(`✈️ Plane Overhead: ${callsign}${addressLabel}`, {
+          description: `${altText} • ${distText}`,
+          duration: 6000,
+        });
+
+        if (settings.overheadAutoSelect) {
+          setSelectedIcao24(closestFlight.icao24);
+        }
+      }
+    } else {
+      lastAlertedIcaoRef.current = null;
+    }
+  }, [
+    displayFlights,
+    settings.overheadEnabled,
+    settings.overheadCoordinates,
+    settings.overheadRadiusKm,
+    settings.overheadAutoSelect,
+    settings.overheadAddress,
+    setSelectedIcao24,
+  ]);
 
   const handleAirportBoardSelect = useCallback(
     (icao24: string) => {

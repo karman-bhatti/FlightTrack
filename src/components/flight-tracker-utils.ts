@@ -6,11 +6,10 @@ import { buildCanonicalCityPath, findCityByCode } from "@/lib/city-routing";
 export { DEFAULT_STYLE, ICAO24_REGEX };
 
 export const DEFAULT_CITY_ID = "sfo";
-export const STYLE_STORAGE_KEY = "aeris:mapStyle";
+export const STYLE_STORAGE_KEY = "jetta:mapStyle";
+export const LEGACY_STYLE_STORAGE_KEY = "aeris:mapStyle";
 export const DEFAULT_CITY =
   CITIES.find((c) => c.id === DEFAULT_CITY_ID) ?? CITIES[0];
-export const GITHUB_REPO_URL = "https://github.com/kewonit/aeris";
-export const GITHUB_REPO_API = "https://api.github.com/repos/kewonit/aeris";
 
 export const subscribeNoop = () => () => {};
 
@@ -128,7 +127,9 @@ export function resolveInitialFpv(): string | null {
 
 export function loadMapStyle(): MapStyle {
   try {
-    const id = localStorage.getItem(STYLE_STORAGE_KEY);
+    const id =
+      localStorage.getItem(STYLE_STORAGE_KEY) ??
+      localStorage.getItem(LEGACY_STYLE_STORAGE_KEY);
     if (!id) return DEFAULT_STYLE;
     return MAP_STYLES.find((s) => s.id === id) ?? DEFAULT_STYLE;
   } catch {
