@@ -17,21 +17,20 @@ const directTraceConnectSrc = Array.from(
 // NOTE: planespotters.net, airport-data.com, and jetapi.dev are
 // server-side only (accessed via /api/aircraft-photos proxy route). CSP does
 // not apply to server-side fetches, so they are not listed in connect-src.
-// adsbdb.com and hexdb.io are server-side only for route lookup via /api/routes.
 const cspHeader = `
-  default-src 'self';
-  script-src 'self' 'unsafe-inline' https://www.googletagmanager.com${isDev ? " 'unsafe-eval'" : ""};
-  style-src 'self' 'unsafe-inline';
-  img-src 'self' blob: data: https: ;
-  font-src 'self';
-  media-src 'self' blob: data: https://www.liveatc.net https://*.liveatc.net https://d.liveatc.net https://d2.liveatc.net https:;
-  connect-src 'self' data: https://opensky-network.org https://*.basemaps.cartocdn.com https://basemaps.cartocdn.com https://server.arcgisonline.com https://s3.amazonaws.com https://tile.opentopomap.org https://www.google-analytics.com https://www.googletagmanager.com https://api.github.com https://api.airplanes.live https://api.adsb.lol https://opendata.adsb.fi https://res.cloudinary.com https://api.rainviewer.com https://www.liveatc.net https://*.liveatc.net https://d.liveatc.net https://d2.liveatc.net ${directTraceConnectSrc};
-  worker-src 'self' blob:;
-  child-src blob:;
+  default-src 'self' https: data: blob:;
+  script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https:;
+  style-src 'self' 'unsafe-inline' https:;
+  img-src 'self' data: blob: https:;
+  font-src 'self' data: https:;
+  media-src 'self' data: blob: https:;
+  connect-src 'self' https: wss: data: blob: ${directTraceConnectSrc};
+  worker-src 'self' blob: data:;
+  child-src 'self' blob:;
   object-src 'none';
   base-uri 'self';
   form-action 'self';
-  frame-ancestors 'none';${isDev ? "" : "\n  upgrade-insecure-requests;"}
+  frame-ancestors 'none';
 `;
 
 const nextConfig: NextConfig = {
