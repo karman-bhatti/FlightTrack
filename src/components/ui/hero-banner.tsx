@@ -17,7 +17,7 @@ export function HeroBanner({
   const [failed, setFailed] = useState(false);
   const [sourceIndex, setSourceIndex] = useState(0);
   const candidates = useMemo(() => {
-    const urls = [photo?.url, photo?.thumbnail]
+    const urls = [photo?.thumbnail, photo?.url]
       .map((url) => url?.trim())
       .filter((url): url is string => Boolean(url));
 

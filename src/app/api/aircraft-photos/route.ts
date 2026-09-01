@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const FETCH_TIMEOUT_MS = 5_000;
-const AIRPORT_DATA_TIMEOUT_MS = 5_000;
-const JETAPI_TIMEOUT_MS = 5_000;
+const FETCH_TIMEOUT_MS = 2_500;
+const AIRPORT_DATA_TIMEOUT_MS = 2_500;
+const JETAPI_TIMEOUT_MS = 2_500;
 const HEX_REGEX = /^[0-9a-f]{6}$/;
 const REG_REGEX = /^[A-Z0-9][A-Z0-9-]{1,9}$/;
 const UPSTREAM_USER_AGENT =
-  "AerisFlightTracker/0.8.8 (+https://github.com/kewonit/aeris)";
+  "JettaFlightTracker/0.8.8 (+https://github.com/kewonit/aeris)";
+
+const serverPhotoCache = new Map<
+  string,
+  { response: AircraftPhotosResponse; expiresAt: number }
+>();
+const SERVER_CACHE_MAX = 500;
+const SERVER_CACHE_TTL_MS = 30 * 60 * 1000;
 
 // ── Upstream types ──────────────────────────────────────────────────────────
 
@@ -449,6 +456,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 
+  const cacheKey = validReg ? `${hex}:${validReg}` : hex;
+  const cached = serverPhotoCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    return NextResponse.json(cached.response, {
+      status: 200,
+      headers: {
+        "Cache-Control":
+          "public, max-age=1800, s-maxage=1800, stale-while-revalidate=3600",
+      },
+    });
+  }
+
   const [
     psResult,
     adbResult,
@@ -514,6 +533,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     photos,
     aircraft,
   };
+
+  if (serverPhotoCache.size >= SERVER_CACHE_MAX) {
+    const firstKey = serverPhotoCache.keys().next().value;
+    if (firstKey !== undefined) serverPhotoCache.delete(firstKey);
+  }
+  serverPhotoCache.set(cacheKey, {
+    response,
+    expiresAt: Date.now() + SERVER_CACHE_TTL_MS,
+  });
 
   return NextResponse.json(response, {
     status: 200,

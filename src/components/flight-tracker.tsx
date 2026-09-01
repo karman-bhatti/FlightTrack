@@ -52,6 +52,7 @@ import { MobileFlightToast } from "@/components/ui/mobile-flight-toast";
 import { toast } from "sonner";
 import { haversineDistanceRad } from "@/lib/geo";
 import { formatAltitude } from "@/lib/unit-formatters";
+import { playOverheadDing } from "@/lib/overhead-sound";
 import type { MapStyle } from "@/lib/map-styles";
 import type { City } from "@/lib/cities";
 import type { FlightState } from "@/lib/opensky";
@@ -373,6 +374,10 @@ function FlightTrackerInner({
           duration: 6000,
         });
 
+        if (settings.overheadSound !== false) {
+          playOverheadDing();
+        }
+
         if (settings.overheadAutoSelect) {
           setSelectedIcao24(closestFlight.icao24);
         }
@@ -386,6 +391,7 @@ function FlightTrackerInner({
     settings.overheadCoordinates,
     settings.overheadRadiusKm,
     settings.overheadAutoSelect,
+    settings.overheadSound,
     settings.overheadAddress,
     settings.unitSystem,
     setSelectedIcao24,

@@ -20,6 +20,8 @@ import {
   Search,
   Loader2,
   X,
+  Volume2,
+  Bell,
 } from "lucide-react";
 import {
   useSettings,
@@ -38,6 +40,7 @@ import {
   type Settings,
 } from "@/hooks/use-settings";
 import type { City } from "@/lib/cities";
+import { playOverheadDing } from "@/lib/overhead-sound";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
 import { SHORTCUTS } from "@/components/ui/keyboard-shortcuts-help";
@@ -182,12 +185,14 @@ export function SettingsContent({
             coordinates={settings.overheadCoordinates}
             radiusKm={settings.overheadRadiusKm}
             autoSelect={settings.overheadAutoSelect}
+            sound={settings.overheadSound}
             onUpdateAddress={(addr, coords) => {
               update("overheadAddress", addr);
               update("overheadCoordinates", coords);
             }}
             onUpdateRadius={(r) => update("overheadRadiusKm", r)}
             onUpdateAutoSelect={(v) => update("overheadAutoSelect", v)}
+            onUpdateSound={(v) => update("overheadSound", v)}
             onNavigateHome={onSelectCity}
           />
         )}
@@ -511,21 +516,25 @@ function OverheadAddressSettings({
   coordinates,
   radiusKm,
   autoSelect,
+  sound = true,
   onUpdateAddress,
   onUpdateRadius,
   onUpdateAutoSelect,
+  onUpdateSound,
   onNavigateHome,
 }: {
   address: string;
   coordinates: [number, number] | null;
   radiusKm: number;
   autoSelect: boolean;
+  sound?: boolean;
   onUpdateAddress: (
     address: string,
     coordinates: [number, number] | null,
   ) => void;
   onUpdateRadius: (r: number) => void;
   onUpdateAutoSelect: (v: boolean) => void;
+  onUpdateSound?: (v: boolean) => void;
   onNavigateHome?: (city: City) => void;
 }) {
   const [query, setQuery] = useState(address);
@@ -726,6 +735,38 @@ function OverheadAddressSettings({
         checked={autoSelect}
         onChange={onUpdateAutoSelect}
       />
+
+      {onUpdateSound && (
+        <div className="flex items-center justify-between gap-2 rounded-lg bg-foreground/[0.03] p-2 ring-1 ring-foreground/6">
+          <div className="flex items-center gap-2">
+            <Volume2 className="h-4 w-4 text-foreground/70" />
+            <div className="flex flex-col">
+              <span className="text-[12px] font-medium text-foreground">
+                Overhead alert chime
+              </span>
+              <span className="text-[10px] text-foreground/50">
+                Play pleasant ding when a plane enters your airspace
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => playOverheadDing()}
+              className="inline-flex h-6 items-center justify-center rounded-md bg-foreground/10 px-2 text-[10px] font-medium text-foreground hover:bg-foreground/15"
+              title="Test chime sound"
+            >
+              Test
+            </button>
+            <input
+              type="checkbox"
+              checked={sound}
+              onChange={(e) => onUpdateSound(e.target.checked)}
+              className="h-4 w-4 rounded accent-foreground"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

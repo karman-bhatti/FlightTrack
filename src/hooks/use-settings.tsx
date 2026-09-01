@@ -41,6 +41,7 @@ export type Settings = {
   overheadCoordinates: [longitude: number, latitude: number] | null;
   overheadRadiusKm: number;
   overheadAutoSelect: boolean;
+  overheadSound: boolean;
 };
 
 export const TRAIL_THICKNESS_MIN = 0.5;
@@ -123,6 +124,10 @@ export function normalizeSettings(input: Settings): Settings {
       typeof input.overheadAutoSelect === "boolean"
         ? input.overheadAutoSelect
         : DEFAULT_SETTINGS.overheadAutoSelect,
+    overheadSound:
+      typeof input.overheadSound === "boolean"
+        ? input.overheadSound
+        : DEFAULT_SETTINGS.overheadSound,
   };
 }
 
@@ -150,6 +155,7 @@ export const DEFAULT_SETTINGS: Settings = {
   overheadCoordinates: null,
   overheadRadiusKm: 10,
   overheadAutoSelect: true,
+  overheadSound: true,
 };
 
 const STORAGE_KEY = "jetta:settings";
@@ -206,13 +212,15 @@ export function migrateSettingsDefaults(
   return next;
 }
 
-function isValidSettings(obj: unknown): obj is Settings {
-  if (typeof obj !== "object" || obj === null) return false;
-  const s = obj as Record<string, unknown>;
+function isValidSettings(s: Partial<Settings>): s is Settings {
   return (
+    typeof s === "object" &&
+    s !== null &&
     typeof s.autoOrbit === "boolean" &&
     typeof s.orbitSpeed === "number" &&
     Number.isFinite(s.orbitSpeed) &&
+    s.orbitSpeed >= 0.02 &&
+    s.orbitSpeed <= 0.5 &&
     (s.orbitDirection === "clockwise" ||
       s.orbitDirection === "counter-clockwise") &&
     typeof s.showTrails === "boolean" &&
@@ -256,7 +264,8 @@ function isValidSettings(obj: unknown): obj is Settings {
         typeof s.overheadCoordinates[0] === "number" &&
         typeof s.overheadCoordinates[1] === "number")) &&
     typeof s.overheadRadiusKm === "number" &&
-    typeof s.overheadAutoSelect === "boolean"
+    typeof s.overheadAutoSelect === "boolean" &&
+    (s.overheadSound === undefined || typeof s.overheadSound === "boolean")
   );
 }
 

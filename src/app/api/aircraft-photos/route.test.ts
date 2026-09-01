@@ -100,7 +100,10 @@ test("GET sends an app-identifying user agent to Planespotters and parses curren
     };
 
     assert.equal(response.status, 200);
-    assert.match(planespottersUserAgent ?? "", /^AerisFlightTracker\//);
+    assert.match(
+      planespottersUserAgent ?? "",
+      /^(?:Jetta|Aeris)FlightTracker\//,
+    );
     assert.equal(body.aircraft?.registration, "03-3122");
     assert.equal(body.photos[0]?.url, "https://cdn.jetphotos.com/full/example.jpg");
     assert.equal(body.photos[1]?.url, "https://t.plnspttrs.net/37298/1619136_280.jpg");

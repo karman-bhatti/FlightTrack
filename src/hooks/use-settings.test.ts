@@ -112,4 +112,5 @@ test("settings normalization clamps overheadRadiusKm and validates overhead sett
   assert.equal(settings.overheadEnabled, true);
   assert.equal(settings.overheadRadiusKm, 50); // clamped to MAX
   assert.deepEqual(settings.overheadCoordinates, [-77.0365, 38.8977]);
+  assert.equal(settings.overheadSound, true);
 });

@@ -65,7 +65,7 @@ const Thumbnail = memo(function Thumbnail({
       )}
       {visible && (
         <img
-          src={photo.url}
+          src={photo.thumbnail || photo.url}
           alt={`Aircraft photo ${index + 1}`}
           loading="lazy"
           decoding="async"

@@ -165,7 +165,7 @@ function PhotoCarouselHero({ photos, loading }: PhotoCarouselHeroProps) {
                 </div>
               ) : mountedSlides.has(i) ? (
                 <Image
-                  src={photo.url}
+                  src={photo.thumbnail || photo.url}
                   alt={`Aircraft photo ${i + 1}`}
                   fill
                   sizes="100vw"
