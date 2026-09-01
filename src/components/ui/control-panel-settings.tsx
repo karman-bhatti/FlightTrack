@@ -958,45 +958,6 @@ export function AboutContent() {
             who&apos;s cruising at 35,000ft and who&apos;s on approach.
           </p>
         </div>
-
-        <div className="h-px w-full bg-foreground/10" />
-
-        <p className="text-[12px] leading-relaxed text-foreground/40">
-          Built by a human, not just LLMs.{" "}
-          <a
-            href="https://github.com/kewonit"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-foreground/70 underline decoration-foreground/20 underline-offset-2 hover:text-foreground/90 transition-colors"
-          >
-            kewonit
-          </a>
-          . Open to internships —{" "}
-          <a
-            href="mailto:kew@edbn.me"
-            className="text-foreground/70 underline decoration-foreground/20 underline-offset-2 hover:text-foreground/90 transition-colors"
-          >
-            kew@edbn.me
-          </a>
-        </p>
-        <p className="text-[12px] leading-relaxed text-foreground/40">
-          Source is on{" "}
-          <a
-            href="https://github.com/kewonit/aeris"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-foreground/70 underline decoration-foreground/20 underline-offset-2 hover:text-foreground/90 transition-colors"
-          >
-            GitHub
-          </a>
-          . Got a question or just wanna say hi?{" "}
-          <a
-            href="mailto:aeris@edbn.me"
-            className="text-foreground/70 underline decoration-foreground/20 underline-offset-2 hover:text-foreground/90 transition-colors"
-          >
-            aeris@edbn.me
-          </a>
-        </p>
       </div>
     </ScrollArea>
   );

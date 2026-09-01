@@ -1,13 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { FlightState } from "@/lib/opensky";
 import { fetchFlightByHex } from "@/lib/flight-api";
 import { cityFromFlight } from "@/components/flight-tracker-random";
-import {
-  syncFpvToUrl,
-  GITHUB_REPO_API,
-} from "@/components/flight-tracker-utils";
+import { syncFpvToUrl } from "@/components/flight-tracker-utils";
 import type { City } from "@/lib/cities";
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -30,15 +27,9 @@ export interface UseFlightMonitorsOptions {
   setFpvSeedCenter: (v: { lng: number; lat: number } | null) => void;
 }
 
-export interface UseFlightMonitorsResult {
-  repoStars: number | null;
-}
-
 // ── Hook ───────────────────────────────────────────────────────────────
 
-export function useFlightMonitors(
-  opts: UseFlightMonitorsOptions,
-): UseFlightMonitorsResult {
+export function useFlightMonitors(opts: UseFlightMonitorsOptions): void {
   const {
     pendingFpvRef,
     fpvIcao24,
@@ -56,8 +47,6 @@ export function useFlightMonitors(
     setCityOverride,
     setFpvSeedCenter,
   } = opts;
-
-  const [repoStars, setRepoStars] = useState<number | null>(null);
 
   // ── Pending FPV resolution ───────────────────────────────────────
 
@@ -247,30 +236,4 @@ export function useFlightMonitors(
       return () => clearTimeout(timer);
     }
   }, [selectedIcao24, selectedFlight, displayFlights, setSelectedIcao24]);
-
-  // ── Repo stars ───────────────────────────────────────────────────
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function loadRepoStars() {
-      try {
-        const res = await fetch(GITHUB_REPO_API);
-        if (!res.ok) return;
-        const data = (await res.json()) as { stargazers_count?: number };
-        if (mounted && typeof data.stargazers_count === "number") {
-          setRepoStars(data.stargazers_count);
-        }
-      } catch {
-        // GitHub API failures are non-critical - star count is cosmetic
-      }
-    }
-
-    loadRepoStars();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  return { repoStars };
 }
