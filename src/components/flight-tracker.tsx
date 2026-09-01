@@ -51,6 +51,7 @@ import { useAirportBoard } from "@/hooks/use-airport-board";
 import { MobileFlightToast } from "@/components/ui/mobile-flight-toast";
 import { toast } from "sonner";
 import { haversineDistanceRad } from "@/lib/geo";
+import { formatAltitude } from "@/lib/unit-formatters";
 import type { MapStyle } from "@/lib/map-styles";
 import type { City } from "@/lib/cities";
 import type { FlightState } from "@/lib/opensky";
@@ -359,8 +360,8 @@ function FlightTrackerInner({
         const callsign =
           closestFlight.callsign?.trim() || closestFlight.icao24.toUpperCase();
         const altText =
-          closestFlight.altitude != null
-            ? `${Math.round(closestFlight.altitude).toLocaleString()} ft`
+          closestFlight.baroAltitude != null
+            ? formatAltitude(closestFlight.baroAltitude, settings.unitSystem)
             : "In flight";
         const distText = `${(Math.round(closestDistKm * 10) / 10).toFixed(1)} km away`;
         const addressLabel = settings.overheadAddress
@@ -386,6 +387,7 @@ function FlightTrackerInner({
     settings.overheadRadiusKm,
     settings.overheadAutoSelect,
     settings.overheadAddress,
+    settings.unitSystem,
     setSelectedIcao24,
   ]);
 
