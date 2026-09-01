@@ -11,6 +11,7 @@ export const SHORTCUTS = [
   { key: "/", description: "Open search" },
   { key: "⌘K", description: "Open search (anywhere)" },
   { key: "F", description: "First person view" },
+  { key: "D", description: "Docked / display mode" },
   { key: "?", description: "Shortcuts help" },
   { key: "A", description: "Toggle ATC panel" },
   { key: "Esc", description: "Close / Deselect" },

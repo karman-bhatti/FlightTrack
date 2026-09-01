@@ -18,6 +18,7 @@ import {
   Locate,
   Maximize,
   Minimize,
+  Tv,
 } from "lucide-react";
 
 type CameraActionType = "zoom" | "pitch" | "bearing";
@@ -318,6 +319,17 @@ export function CameraControls() {
         onClick={flyToMe}
       >
         <Locate className={`h-3.5 w-3.5 ${locating ? "animate-pulse" : ""}`} />
+      </ActionButton>
+
+      <Divider />
+      <ActionButton
+        label="Docked / Smart Display mode"
+        title="Docked / Smart Display mode (Alexa Show / Desk display)"
+        onClick={() => {
+          window.dispatchEvent(new CustomEvent("jetta:toggle-docked"));
+        }}
+      >
+        <Tv className="h-3.5 w-3.5" />
       </ActionButton>
 
       {shouldRenderFullscreenToggle(mounted, fsSupported) && (

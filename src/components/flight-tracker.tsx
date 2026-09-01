@@ -49,6 +49,7 @@ import { useAtcStream } from "@/hooks/use-atc-stream";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useAirportBoard } from "@/hooks/use-airport-board";
 import { MobileFlightToast } from "@/components/ui/mobile-flight-toast";
+import { DockedModeHud } from "@/components/ui/docked-mode-hud";
 import { toast } from "sonner";
 import { haversineDistanceRad } from "@/lib/geo";
 import { formatAltitude } from "@/lib/unit-formatters";
@@ -143,6 +144,15 @@ function FlightTrackerInner({
   const [userLocation, setUserLocation] = useState<[number, number] | null>(
     null,
   );
+  const [isDocked, setIsDocked] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    const p = new URLSearchParams(window.location.search);
+    return (
+      p.get("docked") === "true" ||
+      p.get("dock") === "true" ||
+      p.get("kiosk") === "true"
+    );
+  });
 
   const activeCity = cityOverride ?? hydratedCity;
   const mapStyle = styleOverride ?? hydratedStyle;
@@ -150,6 +160,32 @@ function FlightTrackerInner({
   const { setTheme } = useTheme();
   const isMobile = useIsMobile();
   const showAirspace = airspaceAvailable && settings.showAirspace;
+
+  // Toggle docked mode with URL syncing
+  const toggleDockedMode = useCallback(() => {
+    setIsDocked((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        if (next) {
+          url.searchParams.set("docked", "true");
+          update("autoOrbit", true);
+        } else {
+          url.searchParams.delete("docked");
+          url.searchParams.delete("dock");
+          url.searchParams.delete("kiosk");
+        }
+        window.history.replaceState({}, "", url.toString());
+      }
+      return next;
+    });
+  }, [update]);
+
+  useEffect(() => {
+    const handleToggle = () => toggleDockedMode();
+    window.addEventListener("jetta:toggle-docked", handleToggle);
+    return () => window.removeEventListener("jetta:toggle-docked", handleToggle);
+  }, [toggleDockedMode]);
 
   // Sync document theme with current map style (dark/light)
   useEffect(() => {
@@ -672,18 +708,21 @@ function FlightTrackerInner({
     onToggleOrbit: handleToggleOrbit,
     onOpenSearch: handleOpenSearch,
     onToggleHelp: handleToggleHelp,
-    onDeselect: handleShortcutDeselect,
+    onDeselect: isDocked ? toggleDockedMode : handleShortcutDeselect,
     onToggleFpv: handleToggleFpvKey,
     onToggleAtc: handleToggleAtc,
+    onToggleDocked: toggleDockedMode,
     isFpv: fpvIcao24 !== null,
   });
 
   // Whether to show the mobile bottom sheet flight card
-  const showMobileFlightCard = isMobile && !fpvIcao24 && !!displayFlight;
+  const showMobileFlightCard =
+    isMobile && !fpvIcao24 && !isDocked && !!displayFlight;
   // Whether to show the mobile airport bottom sheet
   const showMobileAirportCard =
-    isMobile && !fpvIcao24 && !displayFlight && airportBoard.isActive;
-  const desktopLeftPanelOpen = !isMobile && !fpvIcao24 && leftPanel !== null;
+    isMobile && !fpvIcao24 && !isDocked && !displayFlight && airportBoard.isActive;
+  const desktopLeftPanelOpen =
+    !isMobile && !fpvIcao24 && !isDocked && leftPanel !== null;
   const desktopPanelStyle = {
     "--aeris-left-sidebar-width": AERIS_LEFT_SIDEBAR_WIDTH,
     "--aeris-left-chrome-shift": `calc(${AERIS_LEFT_SIDEBAR_WIDTH} + 0.25rem)`,
@@ -748,8 +787,19 @@ function FlightTrackerInner({
         </MapView>
       </div>
 
+      {isDocked && (
+        <DockedModeHud
+          activeCity={activeCity}
+          flights={displayFlights}
+          selectedFlight={displayFlight}
+          onSelectFlight={selectFlight}
+          onExit={toggleDockedMode}
+          onSelectCity={setActiveCity}
+        />
+      )}
+
       <div className="pointer-events-none absolute inset-0 z-10">
-        {!fpvIcao24 && (
+        {!fpvIcao24 && !isDocked && (
           <div
             className="aeris-left-chrome pointer-events-auto absolute left-3 top-3 flex items-center gap-3 sm:left-4 sm:top-4"
             data-panel-open={desktopLeftPanelOpen}
@@ -758,7 +808,7 @@ function FlightTrackerInner({
           </div>
         )}
 
-        {!fpvIcao24 && !isMobile && (
+        {!fpvIcao24 && !isDocked && !isMobile && (
           <AerisLeftSidebar
             leftPanel={leftPanel}
             onClose={() => setLeftPanel(null)}
@@ -778,7 +828,7 @@ function FlightTrackerInner({
           />
         )}
 
-        {!fpvIcao24 && (
+        {!fpvIcao24 && !isDocked && (
           <div className="pointer-events-auto absolute right-3 top-3 flex items-center gap-1.5 sm:right-4 sm:top-4 sm:gap-2">
             <ControlPanel
               airspaceAvailable={airspaceAvailable}
@@ -794,7 +844,7 @@ function FlightTrackerInner({
           </div>
         )}
 
-        {!fpvIcao24 && (
+        {!fpvIcao24 && !isDocked && (
           <div
             className="aeris-left-chrome pointer-events-auto absolute bottom-[env(safe-area-inset-bottom,0px)] left-3 mb-3 sm:bottom-4 sm:left-4 sm:mb-0"
             data-panel-open={desktopLeftPanelOpen}
@@ -818,7 +868,7 @@ function FlightTrackerInner({
         )}
 
         {/* ATC Player Bar - top-center on mobile, bottom-center on desktop */}
-        {!fpvIcao24 && (
+        {!fpvIcao24 && !isDocked && (
           <AnimatePresence>
             {atc.feed && (
               <div
@@ -831,7 +881,7 @@ function FlightTrackerInner({
           </AnimatePresence>
         )}
 
-        {!fpvIcao24 && (
+        {!fpvIcao24 && !isDocked && (
           <div className="pointer-events-none absolute bottom-[env(safe-area-inset-bottom,0px)] right-3 mb-3 flex flex-col items-end gap-2 sm:bottom-4 sm:right-4 sm:mb-0">
             <div className="pointer-events-auto">
               <CameraControls />
