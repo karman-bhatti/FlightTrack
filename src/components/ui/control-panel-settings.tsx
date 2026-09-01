@@ -1240,9 +1240,8 @@ export function AboutContent() {
         <div className="space-y-3 text-[13px] leading-relaxed text-foreground/55">
           <p>
             Live flight tracking in 3D. The planes you see are real. Position
-            data comes from adsb.lol, adsb.fi, airplanes.live, and OpenSky
-            Network, updated every few seconds via ADS-B receivers people run
-            on their roofs worldwide.
+            data comes from adsb.fi and adsb.lol, updated every few seconds via
+            ADS-B receivers people run on their roofs worldwide.
           </p>
           <p>
             You can search through 9,000+ airports, jump into first-person view

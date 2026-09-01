@@ -9,14 +9,14 @@ const CACHE_HIT_TTL_MS = 15 * 60_000;
 const CACHE_MISS_TTL_MS = 2 * 60_000;
 const CACHE_MAX_ENTRIES = 500;
 
-const PROVIDER_TIMEOUT_MS = 6_000;
+const PROVIDER_TIMEOUT_MS = 3_500;
 
 type RouteSource = "adsbdb" | "hexdb" | "opensky";
 
 const PROVIDER_RATE_LIMIT_MS: Record<RouteSource, number> = {
-  adsbdb: 1_100,
-  hexdb: 600,
-  opensky: 1_100,
+  adsbdb: 300,
+  hexdb: 200,
+  opensky: 500,
 };
 
 const CALLSIGN_RE = /^[A-Z0-9]{1,8}$/i;
@@ -417,35 +417,61 @@ export async function resolveRouteFromOpenDatabasesDetailed(
   const existing = inflight.get(normalized);
   if (existing) return existing;
 
-  const promise = (async () => {
+  const promise = (async (): Promise<RouteResolution> => {
     try {
-      // Fetch all three sources in parallel for speed.
-      // Each source has its own rate limiter so we won't exceed limits.
-      const [adsbdbResult, hexdbResult, openskyResult] = await Promise.all([
-        fetchFromAdsbdb(normalized),
-        fetchFromHexdb(normalized),
-        fetchFromOpenSky(normalized),
+      // Launch all sources in parallel.
+      const adsbdbPromise = fetchFromAdsbdb(normalized);
+      const hexdbPromise = fetchFromHexdb(normalized);
+      const openskyPromise = fetchFromOpenSky(normalized);
+
+      // Early-exit race: if ANY provider successfully finds a verified route,
+      // return it immediately without waiting for slower providers.
+      const fastResult = await new Promise<RouteInfo | null>((resolve) => {
+        let pending = 3;
+        let resolved = false;
+
+        const handleSuccess = (res: ProviderRouteResult) => {
+          if (resolved) return;
+          if (res.route) {
+            resolved = true;
+            resolve(res.route);
+          } else {
+            pending--;
+            if (pending === 0) resolve(null);
+          }
+        };
+
+        const handleError = () => {
+          if (resolved) return;
+          pending--;
+          if (pending === 0) resolve(null);
+        };
+
+        adsbdbPromise.then(handleSuccess).catch(handleError);
+        hexdbPromise.then(handleSuccess).catch(handleError);
+        openskyPromise.then(handleSuccess).catch(handleError);
+      });
+
+      if (fastResult) {
+        cacheSet(normalized, fastResult);
+        return { route: fastResult, temporarilyUnavailable: false };
+      }
+
+      // If none succeeded immediately, collect all results to determine if miss is cacheable
+      const [resA, resH, resO] = await Promise.allSettled([
+        adsbdbPromise,
+        hexdbPromise,
+        openskyPromise,
       ]);
 
-      // Return the first verified route we get
-      if (adsbdbResult.route) {
-        cacheSet(normalized, adsbdbResult.route);
-        return { route: adsbdbResult.route, temporarilyUnavailable: false };
-      }
-      if (hexdbResult.route) {
-        cacheSet(normalized, hexdbResult.route);
-        return { route: hexdbResult.route, temporarilyUnavailable: false };
-      }
-      if (openskyResult.route) {
-        cacheSet(normalized, openskyResult.route);
-        return { route: openskyResult.route, temporarilyUnavailable: false };
-      }
+      const valA = resA.status === "fulfilled" ? resA.value : null;
+      const valH = resH.status === "fulfilled" ? resH.value : null;
+      const valO = resO.status === "fulfilled" ? resO.value : null;
 
-      // All returned cacheable misses → route genuinely unknown
       const allCacheable =
-        adsbdbResult.cacheableMiss &&
-        hexdbResult.cacheableMiss &&
-        openskyResult.cacheableMiss;
+        (valA?.cacheableMiss ?? false) &&
+        (valH?.cacheableMiss ?? false) &&
+        (valO?.cacheableMiss ?? false);
 
       if (allCacheable) {
         cacheSet(normalized, null);

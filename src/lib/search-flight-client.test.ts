@@ -55,9 +55,9 @@ test("searchFlightsGlobal tries hex then callsign for 6-char hex-like query", as
     const results = await searchFlightsGlobal("AA1234");
     assert.equal(results.length, 1);
     assert.equal(results[0].icao24, "a1b2c3");
-    assert.equal(calls.length, 5);
+    assert.equal(calls.length, 3);
     assert.ok(calls[0].includes("hex"));
-    assert.ok(calls[4].includes("callsign"));
+    assert.ok(calls[2].includes("callsign"));
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -70,7 +70,7 @@ test("searchFlightsGlobal tries callsign variants for a non-hex query", async ()
   globalThis.fetch = async (input: RequestInfo | URL) => {
     const url = typeof input === "string" ? input : input.toString();
     calls.push(url);
-    if (url.includes("AXB2680") && providerFromRequest(url) === "adsb") {
+    if (url.includes("AXB2680") && providerFromRequest(url) === "adsbfi") {
       return new Response(
         readsbBody([
           {
@@ -176,11 +176,9 @@ test("search cache is scoped to the effective provider override", async () => {
   globalThis.fetch = async (input: RequestInfo | URL) => {
     callCount++;
     const provider =
-      providerFromRequest(input) === "airplanes"
-        ? "AIR"
-        : providerFromRequest(input) === "adsbfi"
-          ? "FI"
-          : "ADSB";
+      providerFromRequest(input) === "adsbfi"
+        ? "FI"
+        : "ADSB";
     return new Response(
       readsbBody([
         {
@@ -201,30 +199,28 @@ test("search cache is scoped to the effective provider override", async () => {
     assert.equal((await searchFlightsGlobal("abcdef"))[0]?.callsign, "ADSB");
     location.search = "?provider=adsbfi";
     assert.equal((await searchFlightsGlobal("abcdef"))[0]?.callsign, "FI");
-    location.search = "?provider=airplanes";
-    assert.equal((await searchFlightsGlobal("abcdef"))[0]?.callsign, "AIR");
-    assert.equal(callCount, 3);
+    assert.equal(callCount, 2);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalWindow) {
       Object.defineProperty(globalThis, "window", originalWindow);
     } else {
-      delete (globalThis as typeof globalThis & { window?: unknown }).window;
+      Reflect.deleteProperty(globalThis, "window");
     }
   }
 });
 
-test("global search falls back from adsb.lol to adsb.fi", async () => {
+test("global search falls back from adsb.fi to adsb.lol", async () => {
   resetAllCircuits();
   const originalFetch = globalThis.fetch;
   const calls: string[] = [];
   globalThis.fetch = async (input: RequestInfo | URL) => {
     const url = input.toString();
     calls.push(url);
-    if (providerFromRequest(url) === "adsb") {
+    if (providerFromRequest(url) === "adsbfi") {
       return new Response(readsbBody([]), { status: 200 });
     }
-    if (providerFromRequest(url) === "adsbfi") {
+    if (providerFromRequest(url) === "adsb") {
       return new Response(
         readsbBody([
           {
@@ -246,8 +242,8 @@ test("global search falls back from adsb.lol to adsb.fi", async () => {
     clearFlightSearchCache();
     const results = await searchFlightsGlobal("BAW123");
     assert.equal(results[0]?.icao24, "abc123");
-    assert.equal(providerFromRequest(calls[0]), "adsb");
-    assert.equal(providerFromRequest(calls[1]), "adsbfi");
+    assert.equal(providerFromRequest(calls[0]), "adsbfi");
+    assert.equal(providerFromRequest(calls[1]), "adsb");
     assert.equal(calls.length, 2);
   } finally {
     globalThis.fetch = originalFetch;

@@ -5,7 +5,7 @@ import { buildCanonicalCityPath, findCityByCode } from "@/lib/city-routing";
 
 export { DEFAULT_STYLE, ICAO24_REGEX };
 
-export const DEFAULT_CITY_ID = "sfo";
+export const DEFAULT_CITY_ID = "yyz";
 export const STYLE_STORAGE_KEY = "jetta:mapStyle";
 export const LEGACY_STYLE_STORAGE_KEY = "aeris:mapStyle";
 export const DEFAULT_CITY =

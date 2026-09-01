@@ -30,7 +30,7 @@ const FPV_POINT_RADIUS = 2;
 const MAX_EMPTY_STREAK = 3;
 
 /**
- * Fetches flights via adsb.lol → adsb.fi → airplanes.live → OpenSky fallback.
+ * Fetches flights via adsb.fi (primary) → adsb.lol (fallback).
  * In FPV mode the query center moves with the tracked aircraft.
  * City changes are ignored while in FPV.
  */

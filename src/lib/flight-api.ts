@@ -1,18 +1,14 @@
 /**
  * Flight API client - barrel re-export.
  *
- * Default 4-tier fallback chain:
- *   Tier 1: adsb.lol       (server proxy)
- *   Tier 2: adsb.fi        (server proxy, public fallback)
- *   Tier 3: airplanes.live (server proxy, best effort)
- *   Tier 4: OpenSky        (direct, limited credits)
+ * Default 2-tier fallback chain:
+ *   Tier 1: adsb.fi        (server proxy, primary)
+ *   Tier 2: adsb.lol       (server proxy, fallback)
  *
- * Override: add ?provider=airplanes|adsb|adsbfi|opensky to the URL.
+ * Override: add ?provider=adsbfi|adsb to the URL.
  *
- * @see https://api.airplanes.live/openapi.json
- * @see https://api.adsb.lol/docs
  * @see https://github.com/adsbfi/opendata
- * @see https://openskynetwork.github.io/opensky-api/rest.html
+ * @see https://api.adsb.lol/docs
  */
 
 // ── Types ──────────────────────────────────────────────────────────────

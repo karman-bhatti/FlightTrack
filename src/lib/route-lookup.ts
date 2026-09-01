@@ -66,6 +66,14 @@ function cacheGet(callsign: string): RouteInfo | null | undefined {
   return entry.route;
 }
 
+export function getCachedRoute(
+  callsign: string | null | undefined,
+): RouteInfo | null | undefined {
+  const normalized = normalizeCallsign(callsign);
+  if (!normalized) return undefined;
+  return cacheGet(normalized);
+}
+
 function cacheSet(callsign: string, route: RouteInfo | null): void {
   cache.set(callsign, {
     route,

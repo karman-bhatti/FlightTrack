@@ -73,7 +73,7 @@ test("syncCityToUrl uses the canonical city route for the default city", () => {
 
     syncCityToUrl(DEFAULT_CITY);
 
-    assert.equal(replacedUrl, "/city/sfo");
+    assert.equal(replacedUrl, "/city/yyz");
   } finally {
     if (originalWindowDescriptor) {
       Object.defineProperty(globalThis, "window", originalWindowDescriptor);

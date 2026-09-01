@@ -19,7 +19,7 @@ import { READSB_FETCH_TIMEOUT_MS, MAX_RADIUS_NM } from "@/lib/flight-api-types";
 
 // ── Provider Configuration ─────────────────────────────────────────────
 
-type ProviderKey = "adsb" | "adsbfi" | "airplanes";
+type ProviderKey = "adsbfi" | "adsb";
 
 interface ProviderConfig {
   baseUrl: string;
@@ -29,25 +29,20 @@ interface ProviderConfig {
 }
 
 const PROVIDERS: Record<ProviderKey, ProviderConfig> = {
+  adsbfi: {
+    baseUrl: "https://opendata.adsb.fi/api",
+    name: "adsb.fi",
+    rateMs: 1_000, // Public API limit: 1 req/s per IP
+  },
   adsb: {
     baseUrl: "https://api.adsb.lol/v2",
     name: "adsb.lol",
     rateMs: 500,
   },
-  adsbfi: {
-    baseUrl: "https://opendata.adsb.fi/api",
-    name: "adsb.fi",
-    rateMs: 1_100, // Public API limit: 1 req/s per IP
-  },
-  airplanes: {
-    baseUrl: "https://api.airplanes.live/v2",
-    name: "airplanes.live",
-    rateMs: 1_100, // Conservative best-effort floor; no published 2.0.0 quota
-  },
 };
 
 const UPSTREAM_USER_AGENT =
-  "AerisFlightTracker/0.8.8 (+https://github.com/kewonit/aeris)";
+  "JettaFlightTracker/0.8.8 (+https://github.com/kewonit/aeris)";
 
 // ── Server-Side Rate Limiter (per provider, concurrency-safe) ──────────
 
@@ -138,15 +133,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   // Validate provider (explicit check avoids prototype-chain pitfalls of `in`)
   const providerRaw =
-    request.nextUrl.searchParams.get("provider")?.toLowerCase() ?? "adsb";
+    request.nextUrl.searchParams.get("provider")?.toLowerCase() ?? "adsbfi";
 
-  if (
-    providerRaw !== "adsb" &&
-    providerRaw !== "adsbfi" &&
-    providerRaw !== "airplanes"
-  ) {
+  if (providerRaw !== "adsbfi" && providerRaw !== "adsb") {
     return NextResponse.json(
-      { error: "Invalid provider. Use 'adsb', 'adsbfi', or 'airplanes'." },
+      { error: "Invalid provider. Use 'adsbfi' or 'adsb'." },
       { status: 400, headers: { "Cache-Control": "no-store" } },
     );
   }

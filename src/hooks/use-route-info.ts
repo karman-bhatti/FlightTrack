@@ -24,7 +24,11 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { FlightState } from "@/lib/opensky";
-import { lookupRoute, formatAirportCode } from "@/lib/route-lookup";
+import {
+  lookupRoute,
+  getCachedRoute,
+  formatAirportCode,
+} from "@/lib/route-lookup";
 import type { RouteInfo, RouteAirport } from "@/lib/route-lookup";
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -57,20 +61,27 @@ const EMPTY_ROUTE: FlightRouteInfo = {
 };
 
 /** Max time to wait for a route lookup before forcing timeout. */
-const LOOKUP_TIMEOUT_MS = 15_000;
+const LOOKUP_TIMEOUT_MS = 10_000;
 
 // ── Hook ───────────────────────────────────────────────────────────────
 
 export function useRouteInfo(flight: FlightState | null): FlightRouteInfo {
-  const [apiRoute, setApiRoute] = useState<RouteInfo | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isUnavailable, setIsUnavailable] = useState(false);
+  const callsign = flight?.callsign?.trim().toUpperCase() ?? null;
+  const initialCached = callsign ? getCachedRoute(callsign) : undefined;
+
+  const [apiRoute, setApiRoute] = useState<RouteInfo | null>(
+    initialCached !== undefined ? initialCached : null,
+  );
+  const [isLoading, setIsLoading] = useState(
+    callsign !== null && initialCached === undefined,
+  );
+  const [isUnavailable, setIsUnavailable] = useState(
+    initialCached === null,
+  );
 
   // Use a generation counter to ignore stale async results
   const generationRef = useRef(0);
   const mountedRef = useRef(true);
-
-  const callsign = flight?.callsign?.trim().toUpperCase() ?? null;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -90,6 +101,15 @@ export function useRouteInfo(flight: FlightState | null): FlightRouteInfo {
         setIsLoading(false);
         setIsUnavailable(false);
       });
+      return;
+    }
+
+    const cached = getCachedRoute(callsign);
+    if (cached !== undefined) {
+      const generation = ++generationRef.current;
+      setApiRoute(cached);
+      setIsLoading(false);
+      setIsUnavailable(cached === null);
       return;
     }
 

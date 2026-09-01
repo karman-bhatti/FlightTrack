@@ -9,6 +9,14 @@ export type City = {
 
 export const CITIES: City[] = [
   {
+    id: "yyz",
+    name: "Toronto",
+    country: "CA",
+    iata: "YYZ",
+    coordinates: [-79.6294, 43.6759],
+    radius: 2.49,
+  },
+  {
     id: "nyc",
     name: "New York",
     country: "US",

@@ -21,37 +21,27 @@ interface ProviderInfo {
 }
 
 const PROVIDERS: ProviderInfo[] = [
-  { id: "adsb", label: "adsb.lol", description: "Primary - server proxy" },
   {
     id: "adsbfi",
     label: "adsb.fi",
-    description: "Public fallback - server proxy",
+    description: "Primary - server proxy",
   },
   {
-    id: "airplanes",
-    label: "Airplanes.live",
+    id: "adsb",
+    label: "adsb.lol",
     description: "Fallback - server proxy",
-  },
-  {
-    id: "opensky",
-    label: "OpenSky",
-    description: "Last resort - limited credits",
   },
 ];
 
 const SOURCE_LABELS: Record<string, string> = {
-  adsb: "adsb.lol",
   adsbfi: "adsb.fi",
-  opensky: "OpenSky",
-  airplanes: "Airplanes.live",
+  adsb: "adsb.lol",
   none: "Unavailable",
 };
 
 const SOURCE_COLORS: Record<string, string> = {
-  adsb: "rgb(52, 211, 153)", // emerald
   adsbfi: "rgb(34, 211, 238)", // cyan
-  opensky: "rgb(251, 191, 36)", // amber
-  airplanes: "rgb(96, 165, 250)", // blue
+  adsb: "rgb(52, 211, 153)", // emerald
   none: "rgb(248, 113, 113)", // red
 };
 

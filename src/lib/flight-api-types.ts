@@ -17,10 +17,10 @@ export interface FlightApiProvider {
   rateMs: number;
 }
 
-export const PROVIDER_AIRPLANES_LIVE: FlightApiProvider = {
-  name: "Airplanes.live",
-  baseUrl: "https://api.airplanes.live/v2",
-  rateMs: 1_100, // Conservative best-effort floor; no published 2.0.0 quota
+export const PROVIDER_ADSB_FI: FlightApiProvider = {
+  name: "adsb.fi",
+  baseUrl: "https://opendata.adsb.fi/api",
+  rateMs: 1_000, // Public API limit: 1 req/s per IP
 };
 
 export const PROVIDER_ADSB_LOL: FlightApiProvider = {
@@ -29,16 +29,9 @@ export const PROVIDER_ADSB_LOL: FlightApiProvider = {
   rateMs: 500, // Self-imposed: 2 req/s
 };
 
-export const PROVIDER_ADSB_FI: FlightApiProvider = {
-  name: "adsb.fi",
-  baseUrl: "https://opendata.adsb.fi/api",
-  rateMs: 1_100, // Public API limit: 1 req/s per IP
-};
-
 export const PROVIDERS: readonly FlightApiProvider[] = [
-  PROVIDER_ADSB_LOL,
   PROVIDER_ADSB_FI,
-  PROVIDER_AIRPLANES_LIVE,
+  PROVIDER_ADSB_LOL,
 ] as const;
 
 // ── API Constants ──────────────────────────────────────────────────────

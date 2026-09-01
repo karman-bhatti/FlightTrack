@@ -112,7 +112,7 @@ test("provider selection updates the URL and emits an immediate refresh event", 
   }
 });
 
-test("adsb.lol success short-circuits point fallback", async () => {
+test("adsb.fi success short-circuits point fallback", async () => {
   resetAllCircuits();
   const calls: string[] = [];
   const originalFetch = globalThis.fetch;
@@ -123,10 +123,10 @@ test("adsb.lol success short-circuits point fallback", async () => {
 
   try {
     const result = await fetchFlightsByPoint(12.5, 77.6, 1);
-    assert.equal(result.source, "adsb");
+    assert.equal(result.source, "adsbfi");
     assert.equal(result.flights.length, 1);
     assert.equal(calls.length, 1);
-    assert.equal(providerFromRequest(calls[0]), "adsb");
+    assert.equal(providerFromRequest(calls[0]), "adsbfi");
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -144,14 +144,14 @@ test("a valid empty point response does not trigger fallback", async () => {
   try {
     const result = await fetchFlightsByPoint(12.5, 77.6, 1);
     assert.deepEqual(result.flights, []);
-    assert.equal(result.source, "adsb");
+    assert.equal(result.source, "adsbfi");
     assert.equal(calls.length, 1);
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test("an adsb.lol point failure falls back to adsb.fi", async () => {
+test("an adsb.fi point failure falls back to adsb.lol", async () => {
   resetAllCircuits();
   const calls: string[] = [];
   const originalFetch = globalThis.fetch;
@@ -159,117 +159,48 @@ test("an adsb.lol point failure falls back to adsb.fi", async () => {
     const url = input.toString();
     calls.push(url);
     const provider = providerFromRequest(url);
-    return provider === "adsb"
+    return provider === "adsbfi"
       ? new Response(null, { status: 502 })
       : readsbResponse([rawAircraft()]);
   };
 
   try {
     const result = await fetchFlightsByPoint(12.5, 77.6, 1);
-    assert.equal(result.source, "adsbfi");
+    assert.equal(result.source, "adsb");
     assert.equal(result.flights.length, 1);
     assert.equal(calls.length, 2);
-    assert.equal(providerFromRequest(calls[0]), "adsb");
-    assert.equal(providerFromRequest(calls[1]), "adsbfi");
+    assert.equal(providerFromRequest(calls[0]), "adsbfi");
+    assert.equal(providerFromRequest(calls[1]), "adsb");
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test("an empty hex lookup continues from adsb.lol to adsb.fi", async () => {
+test("an empty hex lookup continues from adsb.fi to adsb.lol", async () => {
   resetAllCircuits();
   const calls: string[] = [];
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input: RequestInfo | URL) => {
     const url = input.toString();
     calls.push(url);
-    return providerFromRequest(url) === "adsb"
+    return providerFromRequest(url) === "adsbfi"
       ? readsbResponse([])
       : readsbResponse([rawAircraft()]);
   };
 
   try {
     const result = await fetchFlightsByHex("abc123");
-    assert.equal(result.source, "adsbfi");
+    assert.equal(result.source, "adsb");
     assert.equal(result.flights.length, 1);
     assert.equal(calls.length, 2);
-    assert.equal(providerFromRequest(calls[0]), "adsb");
-    assert.equal(providerFromRequest(calls[1]), "adsbfi");
+    assert.equal(providerFromRequest(calls[0]), "adsbfi");
+    assert.equal(providerFromRequest(calls[1]), "adsb");
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test("an adsb.fi lookup miss continues to airplanes.live", async () => {
-  resetAllCircuits();
-  const calls: string[] = [];
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (input: RequestInfo | URL) => {
-    const url = input.toString();
-    calls.push(url);
-    return url.includes("provider=airplanes")
-      ? readsbResponse([rawAircraft()])
-      : readsbResponse([]);
-  };
-
-  try {
-    const result = await fetchFlightsByHex("abc123");
-    assert.equal(result.source, "airplanes");
-    assert.equal(result.flights.length, 1);
-    assert.equal(calls.length, 3);
-    assert.equal(providerFromRequest(calls[0]), "adsb");
-    assert.equal(providerFromRequest(calls[1]), "adsbfi");
-    assert.equal(providerFromRequest(calls[2]), "airplanes");
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("OpenSky takes over a hex lookup after all readsb providers fail", async () => {
-  resetAllCircuits();
-  const calls: string[] = [];
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (input: RequestInfo | URL) => {
-    const url = input.toString();
-    calls.push(url);
-    return url.startsWith("/api/flights")
-      ? new Response(null, { status: 502 })
-      : openskyResponse();
-  };
-
-  try {
-    const result = await fetchFlightsByHex("abc123");
-    assert.equal(result.source, "opensky");
-    assert.equal(result.flights[0]?.icao24, "abc123");
-    assert.equal(calls.length, 4);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("OpenSky takes over a callsign lookup after all readsb providers fail", async () => {
-  resetAllCircuits();
-  const calls: string[] = [];
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (input: RequestInfo | URL) => {
-    const url = input.toString();
-    calls.push(url);
-    return url.startsWith("/api/flights")
-      ? new Response(null, { status: 502 })
-      : openskyResponse();
-  };
-
-  try {
-    const result = await fetchFlightsByCallsign("TST123");
-    assert.equal(result.source, "opensky");
-    assert.equal(result.flights[0]?.callsign, "TST123");
-    assert.equal(calls.length, 4);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("explicit airplanes.live override stays pinned", async () => {
+test("explicit adsb.lol override stays pinned", async () => {
   resetAllCircuits();
   const originalFetch = globalThis.fetch;
   const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
@@ -277,7 +208,7 @@ test("explicit airplanes.live override stays pinned", async () => {
   Object.defineProperty(globalThis, "window", {
     configurable: true,
     value: {
-      location: { search: "?provider=airplanes" },
+      location: { search: "?provider=adsb" },
       addEventListener: () => {},
     },
   });
@@ -288,9 +219,9 @@ test("explicit airplanes.live override stays pinned", async () => {
 
   try {
     const result = await fetchFlightsByPoint(12.5, 77.6, 1);
-    assert.equal(result.source, "airplanes");
+    assert.equal(result.source, "adsb");
     assert.equal(calls.length, 1);
-    assert.equal(providerFromRequest(calls[0]), "airplanes");
+    assert.equal(providerFromRequest(calls[0]), "adsb");
   } finally {
     globalThis.fetch = originalFetch;
     restoreWindow(originalWindow);
@@ -330,13 +261,13 @@ test("401 and 403 open a provider circuit immediately for five minutes", async (
     resetAllCircuits();
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async (input: RequestInfo | URL) =>
-      providerFromRequest(input) === "adsb"
+      providerFromRequest(input) === "adsbfi"
         ? new Response(null, { status })
         : readsbResponse([rawAircraft()]);
 
     try {
       await fetchFlightsByPoint(12.5, 77.6, 1);
-      const circuit = getCircuitState("adsb");
+      const circuit = getCircuitState("adsbfi");
       assert.equal(circuit.state, "open");
       assert.ok(circuit.cooldownRemaining > 299_000);
     } finally {
@@ -349,14 +280,14 @@ test("429 remains rate limiting and does not open the circuit", async () => {
   resetAllCircuits();
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input: RequestInfo | URL) =>
-    providerFromRequest(input) === "adsb"
+    providerFromRequest(input) === "adsbfi"
       ? new Response(null, { status: 429 })
       : readsbResponse([rawAircraft()]);
 
   try {
     const result = await fetchFlightsByPoint(12.5, 77.6, 1);
-    assert.equal(result.source, "adsbfi");
-    assert.equal(getCircuitState("adsb").state, "closed");
+    assert.equal(result.source, "adsb");
+    assert.equal(getCircuitState("adsbfi").state, "closed");
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -370,7 +301,7 @@ test("one-off lookup success does not change point-polling stickiness", async ()
   globalThis.fetch = async (input: RequestInfo | URL) => {
     const url = input.toString();
     if (phase === "lookup") {
-      return providerFromRequest(url) === "adsb"
+      return providerFromRequest(url) === "adsbfi"
         ? readsbResponse([])
         : readsbResponse([rawAircraft()]);
     }
@@ -382,9 +313,9 @@ test("one-off lookup success does not change point-polling stickiness", async ()
     assert.ok((await fetchFlightByHex("abc123")).flight);
     phase = "point";
     const result = await fetchFlightsByPoint(12.5, 77.6, 1);
-    assert.equal(result.source, "adsb");
+    assert.equal(result.source, "adsbfi");
     assert.equal(pointCalls.length, 1);
-    assert.equal(providerFromRequest(pointCalls[0]), "adsb");
+    assert.equal(providerFromRequest(pointCalls[0]), "adsbfi");
   } finally {
     globalThis.fetch = originalFetch;
   }

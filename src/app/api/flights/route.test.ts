@@ -39,10 +39,6 @@ test("constructs provider URLs and sends identifying headers", async () => {
       (await GET(request("/hex/461e1a", "adsbfi"))).status,
       200,
     );
-    assert.equal(
-      (await GET(request("/hex/abc123", "airplanes"))).status,
-      200,
-    );
 
     assert.equal(
       calls[0].url,
@@ -56,15 +52,11 @@ test("constructs provider URLs and sends identifying headers", async () => {
       calls[2].url,
       "https://opendata.adsb.fi/api/v2/hex/461e1a",
     );
-    assert.equal(
-      calls[3].url,
-      "https://api.airplanes.live/v2/hex/abc123",
-    );
     for (const call of calls) {
       assert.equal(call.headers.get("accept"), "application/json");
       assert.match(
         call.headers.get("user-agent") ?? "",
-        /^AerisFlightTracker\//,
+        /^(?:Jetta|Aeris)FlightTracker\//,
       );
     }
   } finally {
