@@ -14,7 +14,6 @@ import {
   Eye,
   CloudRain,
   Cpu,
-  Sun,
   Plane,
   MapPin,
   Navigation,
@@ -36,7 +35,6 @@ import {
   OVERHEAD_RADIUS_MAX,
   type OrbitDirection,
   type UnitSystem,
-  type ThemeMode,
   type Settings,
 } from "@/hooks/use-settings";
 import type { City } from "@/lib/cities";
@@ -56,12 +54,6 @@ const ORBIT_SNAP_THRESHOLD = 0.025;
 const ORBIT_DIRECTIONS: { label: string; value: OrbitDirection }[] = [
   { label: "Clockwise", value: "clockwise" },
   { label: "Counter", value: "counter-clockwise" },
-];
-
-const THEME_OPTIONS: { label: string; value: ThemeMode }[] = [
-  { label: "Dark", value: "dark" },
-  { label: "Light", value: "light" },
-  { label: "Auto (Map)", value: "auto" },
 ];
 
 const ALTITUDE_DISPLAY_MODES: {
@@ -160,13 +152,6 @@ export function SettingsContent({
           options={ALTITUDE_DISPLAY_MODES}
           value={settings.altitudeDisplayMode}
           onChange={(v) => update("altitudeDisplayMode", v)}
-        />
-        <SegmentRow
-          icon={<Sun className="h-4 w-4" />}
-          title="Theme"
-          options={THEME_OPTIONS}
-          value={settings.themeMode}
-          onChange={(v) => update("themeMode", v)}
         />
 
         {/* ── Units ── */}

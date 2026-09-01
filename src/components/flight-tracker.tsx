@@ -149,16 +149,10 @@ function FlightTrackerInner({
   const isMobile = useIsMobile();
   const showAirspace = airspaceAvailable && settings.showAirspace;
 
-  // Sync document theme with user setting or current map style (dark/light)
+  // Sync document theme with current map style (dark/light)
   useEffect(() => {
-    if (settings.themeMode === "light") {
-      setTheme("light");
-    } else if (settings.themeMode === "dark") {
-      setTheme("dark");
-    } else {
-      setTheme(mapStyle.dark ? "dark" : "light");
-    }
-  }, [settings.themeMode, mapStyle.dark, setTheme]);
+    setTheme(mapStyle.dark ? "dark" : "light");
+  }, [mapStyle.dark, setTheme]);
 
   useEffect(() => {
     if (!isMobile || !leftPanel) return;

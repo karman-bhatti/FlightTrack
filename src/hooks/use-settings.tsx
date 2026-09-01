@@ -210,7 +210,6 @@ function isValidSettings(obj: unknown): obj is Settings {
   if (typeof obj !== "object" || obj === null) return false;
   const s = obj as Record<string, unknown>;
   return (
-    (s.themeMode === "dark" || s.themeMode === "light" || s.themeMode === "auto") &&
     typeof s.autoOrbit === "boolean" &&
     typeof s.orbitSpeed === "number" &&
     Number.isFinite(s.orbitSpeed) &&
