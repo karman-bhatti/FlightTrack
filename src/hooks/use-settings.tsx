@@ -42,6 +42,7 @@ export type Settings = {
   overheadRadiusKm: number;
   overheadAutoSelect: boolean;
   overheadSound: boolean;
+  defaultAirportId: string;
 };
 
 export const TRAIL_THICKNESS_MIN = 0.5;
@@ -128,6 +129,10 @@ export function normalizeSettings(input: Settings): Settings {
       typeof input.overheadSound === "boolean"
         ? input.overheadSound
         : DEFAULT_SETTINGS.overheadSound,
+    defaultAirportId:
+      typeof input.defaultAirportId === "string" && input.defaultAirportId.trim()
+        ? input.defaultAirportId.trim().toLowerCase()
+        : DEFAULT_SETTINGS.defaultAirportId,
   };
 }
 
@@ -156,6 +161,7 @@ export const DEFAULT_SETTINGS: Settings = {
   overheadRadiusKm: 10,
   overheadAutoSelect: true,
   overheadSound: true,
+  defaultAirportId: "yyz",
 };
 
 const STORAGE_KEY = "jetta:settings";
@@ -265,7 +271,8 @@ function isValidSettings(s: Partial<Settings>): s is Settings {
         typeof s.overheadCoordinates[1] === "number")) &&
     typeof s.overheadRadiusKm === "number" &&
     typeof s.overheadAutoSelect === "boolean" &&
-    (s.overheadSound === undefined || typeof s.overheadSound === "boolean")
+    (s.overheadSound === undefined || typeof s.overheadSound === "boolean") &&
+    (s.defaultAirportId === undefined || typeof s.defaultAirportId === "string")
   );
 }
 

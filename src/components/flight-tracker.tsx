@@ -50,6 +50,7 @@ import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useAirportBoard } from "@/hooks/use-airport-board";
 import { MobileFlightToast } from "@/components/ui/mobile-flight-toast";
 import { DockedModeHud } from "@/components/ui/docked-mode-hud";
+import { OverheadAlertToast } from "@/components/ui/overhead-alert-toast";
 import { toast } from "sonner";
 import { haversineDistanceRad } from "@/lib/geo";
 import { formatAltitude } from "@/lib/unit-formatters";
@@ -394,24 +395,30 @@ function FlightTrackerInner({
     if (closestFlight) {
       if (lastAlertedIcaoRef.current !== closestFlight.icao24) {
         lastAlertedIcaoRef.current = closestFlight.icao24;
-        const callsign =
-          closestFlight.callsign?.trim() || closestFlight.icao24.toUpperCase();
-        const altText =
-          closestFlight.baroAltitude != null
-            ? formatAltitude(closestFlight.baroAltitude, settings.unitSystem)
-            : "In flight";
-        const distText = `${(Math.round(closestDistKm * 10) / 10).toFixed(1)} km away`;
+        const targetFlight = closestFlight;
         const addressLabel = settings.overheadAddress
-          ? ` over ${settings.overheadAddress.split(",")[0]}`
+          ? settings.overheadAddress.split(",")[0]
           : "";
 
-        toast.info(`✈️ Plane Overhead: ${callsign}${addressLabel}`, {
-          description: `${altText} • ${distText}`,
-          duration: 6000,
-        });
+        toast.custom(
+          (t) => (
+            <OverheadAlertToast
+              flight={targetFlight}
+              distanceKm={closestDistKm}
+              addressLabel={addressLabel}
+              unitSystem={settings.unitSystem}
+              onTrack={() => {
+                selectFlight(targetFlight);
+                toast.dismiss(t);
+              }}
+              onDismiss={() => toast.dismiss(t)}
+            />
+          ),
+          { duration: 7000 },
+        );
 
         if (settings.overheadSound !== false) {
-          playOverheadDing();
+          playOverheadDing("cabin");
         }
 
         if (settings.overheadAutoSelect) {

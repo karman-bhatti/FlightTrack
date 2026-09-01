@@ -50,6 +50,29 @@ export function resolveInitialCity(): City {
       }
     }
 
+    // Check user-configured default airport setting from localStorage
+    try {
+      const raw =
+        localStorage.getItem("jetta:settings") ||
+        localStorage.getItem("aeris:settings");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const s = parsed?.settings || parsed;
+        if (s?.defaultAirportId) {
+          const userCity = CITIES.find(
+            (c) => c.id === String(s.defaultAirportId).toLowerCase(),
+          );
+          if (userCity) {
+            _cachedInitialCity = userCity;
+            _cachedInitialCityKey = locationKey;
+            return userCity;
+          }
+        }
+      }
+    } catch {
+      // Ignore storage read errors
+    }
+
     _cachedInitialCity = DEFAULT_CITY;
     _cachedInitialCityKey = locationKey;
     return DEFAULT_CITY;

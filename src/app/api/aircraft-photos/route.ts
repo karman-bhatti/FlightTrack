@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const FETCH_TIMEOUT_MS = 2_500;
-const AIRPORT_DATA_TIMEOUT_MS = 2_500;
-const JETAPI_TIMEOUT_MS = 2_500;
+const FETCH_TIMEOUT_MS = 1_500;
+const AIRPORT_DATA_TIMEOUT_MS = 1_200;
+const JETAPI_TIMEOUT_MS = 1_500;
 const HEX_REGEX = /^[0-9a-f]{6}$/;
 const REG_REGEX = /^[A-Z0-9][A-Z0-9-]{1,9}$/;
 const UPSTREAM_USER_AGENT =
@@ -524,9 +524,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     photos.push(safe);
   }
 
-  for (const p of jetApiPhotos) addPhoto(p);
   for (const p of planespottersPhotos) addPhoto(p);
   if (adsbdb.photo) addPhoto(adsbdb.photo);
+  for (const p of jetApiPhotos) addPhoto(p);
   for (const p of airportDataPhotos) addPhoto(p);
 
   const response: AircraftPhotosResponse = {

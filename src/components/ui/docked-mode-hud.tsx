@@ -367,7 +367,7 @@ function DockedFlightCard({
   const route = useRouteInfo(flight);
   const { photos, aircraft } = useAircraftPhotos(
     flight.icao24,
-    flight.callsign?.trim() ?? null,
+    flight.registration ?? null,
   );
 
   const callsign = flight.callsign?.trim() || flight.icao24.toUpperCase();

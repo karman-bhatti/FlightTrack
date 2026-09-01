@@ -39,7 +39,7 @@ import {
   type UnitSystem,
   type Settings,
 } from "@/hooks/use-settings";
-import type { City } from "@/lib/cities";
+import { CITIES, type City } from "@/lib/cities";
 import { playOverheadDing } from "@/lib/overhead-sound";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
@@ -156,6 +156,41 @@ export function SettingsContent({
           value={settings.altitudeDisplayMode}
           onChange={(v) => update("altitudeDisplayMode", v)}
         />
+
+        {/* ── Airport & Location ── */}
+        <SectionHeader title="Default Airport" />
+
+        <div className="flex items-center justify-between gap-3 px-1 py-1.5">
+          <div className="flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-foreground/70" />
+            <div className="flex flex-col">
+              <span className="text-[13px] font-medium text-foreground">
+                Startup airport
+              </span>
+              <span className="text-[11px] text-foreground/50">
+                Default airport when opening app or resetting view
+              </span>
+            </div>
+          </div>
+          <select
+            value={settings.defaultAirportId ?? "yyz"}
+            onChange={(e) => {
+              const newId = e.target.value;
+              update("defaultAirportId", newId);
+              const found = CITIES.find((c) => c.id === newId);
+              if (found && onSelectCity) {
+                onSelectCity(found);
+              }
+            }}
+            className="h-8 rounded-lg border border-foreground/10 bg-foreground/5 px-2.5 font-mono text-[12px] font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-foreground/30"
+          >
+            {CITIES.map((c) => (
+              <option key={c.id} value={c.id} className="bg-popover text-foreground">
+                {c.iata} - {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
 
         {/* ── Units ── */}
         <SectionHeader title="Units" />
