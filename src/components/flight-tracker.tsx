@@ -589,7 +589,11 @@ function FlightTrackerInner({
 
   // Helper: select flight and optionally enter FPV
   const selectFlight = useCallback(
-    (f: FlightState, enterFpv = false) => {
+    (f: FlightState | null, enterFpv = false) => {
+      if (!f) {
+        handleDeselectFlight();
+        return;
+      }
       setSelectedIcao24(f.icao24);
       setFollowIcao24(null);
       setSelectedAirportIata(null);
@@ -606,7 +610,7 @@ function FlightTrackerInner({
         setLeftPanel({ kind: "flight" });
       }
     },
-    [isMobile],
+    [handleDeselectFlight, isMobile],
   );
 
   const handleSelectFlight = useCallback(
