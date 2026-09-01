@@ -521,6 +521,14 @@ export const ATC_FEEDS: Record<string, AtcFeed[]> = {
     feed("CYUL", "approach", "Montreal App/Dep", "119.100", "cyul_app"),
   ],
 
+  CYOW: [
+    // CSV verified
+    feed("CYOW", "tower", "Ottawa Tower", "118.800", "cyow_twr"),
+    feed("CYOW", "ground", "Ottawa Ground", "121.900", "cyow_gnd"),
+    feed("CYOW", "approach", "Ottawa Terminal / Arrival", "119.300", "cyow_app"),
+    feed("CYOW", "atis", "Ottawa ATIS", "121.150", "cyow_atis"),
+  ],
+
   // ── Europe ───────────────────────────────────────────────────────
   // NOTE: Many major European airports (CDG, Frankfurt, Munich, Madrid,
   // Barcelona, Rome, Gatwick, Vienna, Copenhagen, Stockholm, Warsaw)

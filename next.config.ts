@@ -24,7 +24,8 @@ const cspHeader = `
   style-src 'self' 'unsafe-inline';
   img-src 'self' blob: data: https: ;
   font-src 'self';
-  connect-src 'self' data: https://opensky-network.org https://*.basemaps.cartocdn.com https://basemaps.cartocdn.com https://server.arcgisonline.com https://s3.amazonaws.com https://tile.opentopomap.org https://www.google-analytics.com https://www.googletagmanager.com https://api.github.com https://api.airplanes.live https://api.adsb.lol https://res.cloudinary.com https://api.rainviewer.com ${directTraceConnectSrc};
+  media-src 'self' blob: data: https://www.liveatc.net https://*.liveatc.net https://d.liveatc.net https://d2.liveatc.net https:;
+  connect-src 'self' data: https://opensky-network.org https://*.basemaps.cartocdn.com https://basemaps.cartocdn.com https://server.arcgisonline.com https://s3.amazonaws.com https://tile.opentopomap.org https://www.google-analytics.com https://www.googletagmanager.com https://api.github.com https://api.airplanes.live https://api.adsb.lol https://opendata.adsb.fi https://res.cloudinary.com https://api.rainviewer.com https://www.liveatc.net https://*.liveatc.net https://d.liveatc.net https://d2.liveatc.net ${directTraceConnectSrc};
   worker-src 'self' blob:;
   child-src blob:;
   object-src 'none';

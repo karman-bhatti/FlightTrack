@@ -17,6 +17,14 @@ export const CITIES: City[] = [
     radius: 2.49,
   },
   {
+    id: "yow",
+    name: "Ottawa",
+    country: "CA",
+    iata: "YOW",
+    coordinates: [-75.6692, 45.3225],
+    radius: 2.49,
+  },
+  {
     id: "nyc",
     name: "New York",
     country: "US",
