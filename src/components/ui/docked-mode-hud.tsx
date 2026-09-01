@@ -397,7 +397,7 @@ function DockedFlightCard({
                   {callsign}
                 </span>
                 <span className="text-[11px] font-medium text-foreground/55">
-                  {airline?.name ?? aircraft?.type ?? flight.icao24.toUpperCase()}
+                  {airline ?? aircraft?.type ?? flight.icao24.toUpperCase()}
                 </span>
               </div>
             </div>
